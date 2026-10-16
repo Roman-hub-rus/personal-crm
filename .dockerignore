@@ -1,0 +1,14 @@
+# Keep secrets and local build output out of the Docker build context.
+.env
+.env.*
+.git
+.github
+.claude
+.next
+node_modules
+test-results
+playwright-report
+*.tsbuildinfo
+deploy
+Dockerfile
+.dockerignore

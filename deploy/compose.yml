@@ -1,0 +1,57 @@
+# Production stack on the server: the app and its own Postgres.
+# Lives in /opt/personal-crm/compose.yml next to .env (see deploy/.env.example) and is installed by hand:
+# the deploy key can only run deploy/crm-deploy.sh, which switches app versions but never changes this file.
+name: personal-crm
+
+x-app-env: &app-env
+  DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is not set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is not set in .env}
+    # No published ports: only containers of this stack can reach the database.
+    volumes:
+      # Postgres 18+ images keep data under /var/lib/postgresql/<major>/, so mount the parent dir.
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-off jobs with the app image: `docker compose run --rm migrate` applies migrations,
+  # `docker compose run --rm migrate node db/seed.mjs` fills an empty database with test contacts.
+  migrate:
+    image: personal-crm:${APP_TAG:-current}
+    profiles: [jobs]
+    command: ["node", "db/migrate.mjs"]
+    environment: *app-env
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    # crm-deploy.sh points the `current` tag at the version being released.
+    image: personal-crm:${APP_TAG:-current}
+    restart: unless-stopped
+    environment: *app-env
+    ports:
+      # Reachable only from the server itself (nginx proxies to it).
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+volumes:
+  db-data:
