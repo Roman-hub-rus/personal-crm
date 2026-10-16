@@ -2,6 +2,7 @@ import { PlusIcon, SearchXIcon, UsersRoundIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { AddContactLink } from "@/components/add-contact-link";
 import { ContactList } from "@/components/contact-list";
 import { ContactSearch } from "@/components/contact-search";
 import { Button } from "@/components/ui/button";
@@ -23,25 +24,20 @@ export default async function ContactsPage({ searchParams }: PageProps<"/">) {
   const [items, total] = await Promise.all([listContacts(query), countContacts()]);
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 pb-16">
-      <div className="sticky top-0 z-10 -mx-4 border-b bg-background/90 px-4 pt-6 pb-4 backdrop-blur supports-[backdrop-filter]:bg-background/75">
+    <main className="mx-auto w-full max-w-3xl px-5 pb-16">
+      <div className="sticky top-0 z-10 -mx-5 border-b bg-background px-5 pt-4 pb-4 lg:pt-6">
         <div className="flex items-end justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Контакты</h1>
-            <p className="text-sm text-muted-foreground" data-testid="contacts-total">
+          <div className="flex flex-col gap-2">
+            <p className="font-mono text-xs tracking-eyebrow text-faint uppercase" data-testid="contacts-total">
               {formatContactsCount(total)}
             </p>
+            <h1 className="font-display text-title font-semibold lg:text-title-lg">Контакты</h1>
           </div>
-          <Button asChild size="lg">
-            <Link href="/contacts/new">
-              <PlusIcon />
-              Добавить контакт
-            </Link>
-          </Button>
+          <AddContactLink iconOnlyOnMobile>Добавить контакт</AddContactLink>
         </div>
-        {total > 0 && <ContactSearch initialQuery={query} className="mt-4" />}
+        {total > 0 && <ContactSearch initialQuery={query} className="mt-5" />}
         {query && items.length > 0 && (
-          <p className="mt-2 text-sm text-muted-foreground" aria-live="polite">
+          <p className="mt-3 px-1 text-sm text-muted-foreground" aria-live="polite">
             Найдено: {formatContactsCount(items.length)} из {total.toLocaleString("ru-RU")}
           </p>
         )}
@@ -61,17 +57,12 @@ export default async function ContactsPage({ searchParams }: PageProps<"/">) {
 function EmptyState() {
   return (
     <div className="flex flex-col items-center gap-3 py-20 text-center">
-      <UsersRoundIcon aria-hidden className="size-10 text-muted-foreground" />
-      <p className="text-lg font-medium">Пока нет ни одного контакта</p>
-      <p className="max-w-sm text-sm text-muted-foreground">
+      <UsersRoundIcon aria-hidden className="size-10 text-faint" />
+      <p className="font-display text-lg font-semibold text-balance">Пока нет ни одного контакта</p>
+      <p className="max-w-sm text-muted-foreground text-pretty">
         Добавьте первого человека — кто это, откуда знакомы и о чём договорились.
       </p>
-      <Button asChild size="lg" className="mt-2">
-        <Link href="/contacts/new">
-          <PlusIcon />
-          Добавить первый контакт
-        </Link>
-      </Button>
+      <AddContactLink className="mt-3">Добавить первый контакт</AddContactLink>
     </div>
   );
 }
@@ -79,10 +70,12 @@ function EmptyState() {
 function NothingFound({ query }: { query: string }) {
   return (
     <div className="flex flex-col items-center gap-3 py-20 text-center">
-      <SearchXIcon aria-hidden className="size-10 text-muted-foreground" />
-      <p className="text-lg font-medium">Никого не нашли по запросу «{query}»</p>
-      <p className="text-sm text-muted-foreground">Проверьте написание или добавьте нового человека.</p>
-      <Button asChild variant="outline" size="lg" className="mt-2">
+      <SearchXIcon aria-hidden className="size-10 text-faint" />
+      <p className="font-display text-lg font-semibold text-balance break-words">
+        Никого не нашли по запросу «{query}»
+      </p>
+      <p className="text-muted-foreground">Проверьте написание или добавьте нового человека.</p>
+      <Button asChild variant="outline" size="lg" className="mt-3">
         <Link href={`/contacts/new?${new URLSearchParams({ name: query })}`}>
           <PlusIcon />
           Добавить «{query}»

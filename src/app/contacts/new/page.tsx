@@ -12,15 +12,15 @@ export default async function NewContactPage({ searchParams }: PageProps<"/conta
   const initialName = (Array.isArray(name) ? name[0] : name)?.trim().slice(0, 200) ?? "";
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 pt-6">
+    <main className="mx-auto w-full max-w-3xl px-5 pt-4 lg:pt-6">
       <Link
         href="/"
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
       >
         <ArrowLeftIcon aria-hidden className="size-4" />
         Все контакты
       </Link>
-      <h1 className="mt-4 mb-6 text-2xl font-semibold tracking-tight">Новый контакт</h1>
+      <h1 className="mt-5 mb-7 font-display text-title font-semibold lg:text-title-lg">Новый контакт</h1>
       <ContactForm
         mode="create"
         cancelHref="/"

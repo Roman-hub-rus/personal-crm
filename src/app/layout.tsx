@@ -1,16 +1,15 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
+import { Golos_Text, JetBrains_Mono, Unbounded } from "next/font/google";
 
 import { SiteHeader } from "@/components/site-header";
-import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 
 import "./globals.css";
 
-const fontSans = Geist({
-  variable: "--font-sans",
-  subsets: ["latin", "cyrillic"],
-});
+// The landing page fonts: Golos Text for text, Unbounded for headings, JetBrains Mono for labels.
+const fontSans = Golos_Text({ variable: "--font-golos", subsets: ["latin", "cyrillic"] });
+const fontDisplay = Unbounded({ variable: "--font-unbounded", subsets: ["latin", "cyrillic"] });
+const fontMono = JetBrains_Mono({ variable: "--font-jetbrains", subsets: ["latin", "cyrillic"] });
 
 export const metadata: Metadata = {
   title: {
@@ -22,13 +21,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="ru" className={`${fontSans.variable} h-full antialiased`} suppressHydrationWarning>
+    <html
+      lang="ru"
+      className={`${fontSans.variable} ${fontDisplay.variable} ${fontMono.variable} dark h-full antialiased`}
+    >
       <body className="flex min-h-full flex-col">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <SiteHeader />
-          <div className="flex flex-1 flex-col">{children}</div>
-          <Toaster position="top-center" richColors closeButton />
-        </ThemeProvider>
+        <SiteHeader />
+        <div className="flex flex-1 flex-col">{children}</div>
+        <Toaster position="top-center" closeButton />
       </body>
     </html>
   );

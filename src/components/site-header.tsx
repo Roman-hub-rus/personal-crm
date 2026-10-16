@@ -1,15 +1,10 @@
-import { UsersRoundIcon } from "lucide-react";
 import Link from "next/link";
 
 export function SiteHeader() {
   return (
-    <header className="border-b">
-      <div className="mx-auto flex h-12 w-full max-w-3xl items-center px-4">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight hover:opacity-80"
-        >
-          <UsersRoundIcon aria-hidden className="size-4" />
+    <header>
+      <div className="mx-auto flex w-full max-w-3xl items-center px-5 py-4.5 lg:py-6">
+        <Link href="/" className="font-display text-[15px] font-semibold hover:opacity-88 lg:text-lg">
           Личная CRM
         </Link>
       </div>

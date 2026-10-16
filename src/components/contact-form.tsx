@@ -139,7 +139,7 @@ export function ContactForm(props: ContactFormProps) {
               autoComplete="off"
               autoFocus={props.mode === "create"}
               placeholder="Например, Анна Петрова"
-              className="h-10 text-base"
+              className="h-11 text-base md:text-base"
             />
           </Field>
 
@@ -148,7 +148,7 @@ export function ContactForm(props: ContactFormProps) {
               {...fieldProps("about")}
               autoComplete="off"
               placeholder="Например, дизайнер, подруга сестры"
-              className="h-10"
+              className="h-11"
             />
           </Field>
 
@@ -170,7 +170,7 @@ export function ContactForm(props: ContactFormProps) {
               inputMode="tel"
               autoComplete="off"
               placeholder="+7 900 123-45-67"
-              className="h-10"
+              className="h-11"
             />
           </Field>
 
@@ -192,7 +192,7 @@ export function ContactForm(props: ContactFormProps) {
               inputMode="email"
               autoComplete="off"
               placeholder="name@example.com"
-              className="h-10"
+              className="h-11"
             />
           </Field>
 
@@ -201,7 +201,7 @@ export function ContactForm(props: ContactFormProps) {
               {...fieldProps("howWeMet")}
               rows={1}
               placeholder="Например, учились вместе в университете"
-              className="min-h-10 resize-none"
+              className="min-h-11 resize-none py-2.5"
             />
           </Field>
         </CardContent>
@@ -212,24 +212,25 @@ export function ContactForm(props: ContactFormProps) {
           <Field
             field="notes"
             label="Заметки"
+            prominent
             hint="О чём говорили и о чём договорились. Новую заметку допишите в конец — например, с датой разговора."
             error={errors.notes}
           >
             <Textarea
               {...fieldProps("notes")}
               placeholder={"Например:\n8 октября — созвонились, договорились встретиться в субботу."}
-              className="min-h-56 text-base leading-relaxed md:text-sm"
+              className="min-h-56 py-3 text-base leading-relaxed md:text-[15px]"
             />
           </Field>
         </CardContent>
       </Card>
 
-      <div className="sticky bottom-0 z-10 -mx-4 flex items-center justify-between gap-3 border-t bg-background/90 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/75">
+      <div className="sticky bottom-0 z-10 -mx-5 flex items-center justify-between gap-3 border-t bg-background px-5 py-3">
         <p className="min-w-0 text-sm text-muted-foreground" aria-live="polite">
           {props.mode === "edit" &&
             (isDirty ? (
-              <span className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
-                <span aria-hidden className="size-2 shrink-0 rounded-full bg-amber-500" />
+              <span className="flex items-center gap-2 text-foreground">
+                <span aria-hidden className="size-2 shrink-0 rounded-full bg-primary" />
                 <span>
                   <span className="sm:hidden">Не сохранено</span>
                   <span className="hidden sm:inline">Есть несохранённые изменения</span>
@@ -237,7 +238,7 @@ export function ContactForm(props: ContactFormProps) {
               </span>
             ) : (
               <span className="flex items-center gap-1.5">
-                <CircleCheckIcon aria-hidden className="size-4 shrink-0 text-emerald-600" />
+                <CircleCheckIcon aria-hidden className="size-4 shrink-0 text-primary" />
                 <span>
                   Сохранено<span className="hidden sm:inline"> · {updatedAtLabel}</span>
                 </span>
@@ -277,6 +278,7 @@ function Field({
   field,
   label,
   required,
+  prominent,
   hint,
   error,
   action,
@@ -286,6 +288,8 @@ function Field({
   field: ContactField;
   label: string;
   required?: boolean;
+  // Shown as a card title rather than a field label
+  prominent?: boolean;
   hint?: string;
   error?: string;
   action?: ReactNode;
@@ -295,17 +299,20 @@ function Field({
   return (
     <div className={cn("flex flex-col gap-2", className)}>
       <div className="flex min-h-5 items-center justify-between gap-2">
-        <Label htmlFor={`contact-${field}`} className="gap-1">
+        <Label
+          htmlFor={`contact-${field}`}
+          className={cn("gap-1 text-ink-2", prominent && "font-display text-lg font-semibold text-foreground")}
+        >
           {label}
           {required && (
-            <span aria-hidden className="text-destructive">
+            <span aria-hidden className="text-primary">
               *
             </span>
           )}
         </Label>
         {action}
       </div>
-      {hint && <p className="-mt-1 text-sm text-muted-foreground">{hint}</p>}
+      {hint && <p className="-mt-1 mb-1 text-sm text-muted-foreground text-pretty">{hint}</p>}
       {children}
       {error && (
         <p id={`contact-${field}-error`} className="text-sm text-destructive">
@@ -320,7 +327,7 @@ function LabelLink({ href, icon, children }: { href: string; icon: ReactNode; ch
   return (
     <a
       href={href}
-      className="inline-flex items-center gap-1 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline [&_svg]:size-3.5"
+      className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline hover:opacity-88 [&_svg]:size-3.5"
     >
       {icon}
       {children}

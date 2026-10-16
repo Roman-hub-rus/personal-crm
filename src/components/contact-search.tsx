@@ -41,7 +41,7 @@ export function ContactSearch({ initialQuery, className }: { initialQuery: strin
     <div role="search" className={cn("relative", className)}>
       <SearchIcon
         aria-hidden
-        className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+        className="pointer-events-none absolute top-1/2 left-4.5 size-4 -translate-y-1/2 text-faint"
       />
       <Input
         type="search"
@@ -59,17 +59,17 @@ export function ContactSearch({ initialQuery, className }: { initialQuery: strin
             clear();
           }
         }}
-        className="h-10 pr-10 pl-9 text-base [&::-webkit-search-cancel-button]:appearance-none"
+        className="h-12 rounded-full border-border bg-card pr-12 pl-11 text-base md:text-base [&::-webkit-search-cancel-button]:appearance-none"
       />
-      <div className="absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center">
+      <div className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center">
         {isPending ? (
-          <Loader2Icon aria-label="Ищу…" className="mr-1.5 size-4 animate-spin text-muted-foreground" />
+          <Loader2Icon aria-label="Ищу…" className="mr-2.5 size-4 animate-spin text-primary" />
         ) : value ? (
           <button
             type="button"
             onClick={clear}
             aria-label="Очистить поиск"
-            className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="inline-flex size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
           >
             <XIcon className="size-4" />
           </button>

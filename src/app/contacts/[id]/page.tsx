@@ -30,23 +30,23 @@ export default async function ContactPage({ params, searchParams }: PageProps<"/
   const backHref = query ? `/?${new URLSearchParams({ q: query })}` : "/";
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 pt-6">
+    <main className="mx-auto w-full max-w-3xl px-5 pt-4 lg:pt-6">
       <Link
         href={backHref}
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
       >
         <ArrowLeftIcon aria-hidden className="size-4" />
         {query ? "К результатам поиска" : "Все контакты"}
       </Link>
 
-      <header className="mt-4 mb-6 flex items-center gap-4">
+      <header className="mt-5 mb-7 flex items-center gap-4 sm:gap-5">
         <ContactAvatar name={contact.name} size="lg" />
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight break-words">{contact.name}</h1>
-          {contact.about && <p className="text-muted-foreground">{contact.about}</p>}
-          <p className="mt-0.5 text-xs text-muted-foreground">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <p className="font-mono text-xs tracking-eyebrow text-faint uppercase">
             В контактах с {formatDate(contact.createdAt)}
           </p>
+          <h1 className="font-display text-title font-semibold break-words lg:text-title-lg">{contact.name}</h1>
+          {contact.about && <p className="text-muted-foreground">{contact.about}</p>}
         </div>
       </header>
 

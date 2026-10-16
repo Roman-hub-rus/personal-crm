@@ -48,7 +48,7 @@ export function ContactList({ items, query, addedId }: ContactListProps) {
     <div className="pt-2">
       {groupByFirstLetter(items).map((group) => (
         <section key={group.letter} aria-label={`На букву ${group.letter}`}>
-          <h2 className="px-3 pt-4 pb-1 text-xs font-semibold tracking-wide text-muted-foreground">
+          <h2 className="px-3 pt-5 pb-1.5 font-mono text-xs tracking-eyebrow text-faint uppercase">
             {group.letter}
           </h2>
           <ul>
@@ -86,8 +86,8 @@ function ContactRow({
         prefetch={false}
         data-testid="contact-row"
         className={cn(
-          "flex items-center gap-3 rounded-lg px-3 py-2.5 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
-          isNew && "bg-emerald-50 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:ring-emerald-900",
+          "flex items-center gap-3 rounded-2xl border border-transparent px-3 py-2.5 outline-none hover:bg-card focus-visible:ring-2 focus-visible:ring-ring",
+          isNew && "border-primary/50 bg-card",
         )}
       >
         <ContactAvatar name={contact.name} />
@@ -96,11 +96,11 @@ function ContactRow({
             <span className="truncate font-medium">
               <HighlightedText text={contact.name} words={words} />
             </span>
-            {isNew && <Badge className="bg-emerald-600 text-white dark:bg-emerald-500">Новый</Badge>}
+            {isNew && <Badge>Новый</Badge>}
           </div>
           {contact.about && <p className="truncate text-sm text-muted-foreground">{contact.about}</p>}
         </div>
-        <div className="hidden shrink-0 text-sm text-muted-foreground tabular-nums sm:block">
+        <div className="hidden shrink-0 font-mono text-[13px] text-muted-foreground sm:block">
           {contact.phone ?? contact.email}
         </div>
       </Link>

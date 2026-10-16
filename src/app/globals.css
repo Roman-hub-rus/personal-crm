@@ -2,14 +2,16 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* The app has a single dark theme, like the landing page: <html> always has the "dark" class */
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-  --font-heading: var(--font-sans);
+  --font-sans: var(--font-golos), sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+  --font-display: var(--font-unbounded), sans-serif;
+  --font-heading: var(--font-display);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -39,6 +41,9 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-ink-2: var(--ink-2);
+  --color-faint: var(--faint);
+  --color-line-strong: var(--line-strong);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -48,78 +53,79 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+@theme {
+  /* Uppercase mono labels ("eyebrows"), as on the landing page */
+  --tracking-eyebrow: 0.08em;
+
+  /* Page headings: Unbounded, tight letter spacing */
+  --text-title: 28px;
+  --text-title--line-height: 1.15;
+  --text-title--letter-spacing: -0.02em;
+  --text-title-lg: 36px;
+  --text-title-lg--line-height: 1.1;
+  --text-title-lg--letter-spacing: -0.02em;
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+/*
+ * Colors from the landing page design tokens (personal-crm-landing/src/styles/tokens.css),
+ * mapped onto the shadcn/ui color names.
+ */
+:root {
+  --landing-bg: #0e0f0d;
+  --landing-surface: #171815;
+  --landing-line: #232521;
+  --landing-line-strong: #262823;
+  --landing-line-ui: #2f312c;
+  --landing-ink: #f3f4ef;
+  --landing-ink-2: #d9dbd3;
+  --landing-muted: #a8aaa2;
+  --landing-faint: #7d7f77;
+  --landing-accent: oklch(0.88 0.17 125);
+
+  --background: var(--landing-bg);
+  --foreground: var(--landing-ink);
+  --card: var(--landing-surface);
+  --card-foreground: var(--landing-ink);
+  --popover: var(--landing-surface);
+  --popover-foreground: var(--landing-ink);
+  --primary: var(--landing-accent);
+  --primary-foreground: var(--landing-bg);
+  --secondary: var(--landing-line);
+  --secondary-foreground: var(--landing-ink);
+  --muted: var(--landing-surface);
+  --muted-foreground: var(--landing-muted);
+  --accent: var(--landing-surface);
+  --accent-foreground: var(--landing-ink);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: var(--landing-line);
+  --input: var(--landing-line-ui);
+  --ring: var(--landing-accent);
+  --ink-2: var(--landing-ink-2);
+  --faint: var(--landing-faint);
+  --line-strong: var(--landing-line-strong);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --radius: 0.75rem;
+  --sidebar: var(--landing-surface);
+  --sidebar-foreground: var(--landing-ink);
+  --sidebar-primary: var(--landing-accent);
+  --sidebar-primary-foreground: var(--landing-bg);
+  --sidebar-accent: var(--landing-line);
+  --sidebar-accent-foreground: var(--landing-ink);
+  --sidebar-border: var(--landing-line);
+  --sidebar-ring: var(--landing-accent);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    color-scheme: dark;
   }
   body {
     @apply bg-background text-foreground;
@@ -127,7 +133,7 @@
   button:not(:disabled), [role="button"]:not(:disabled) {
     cursor: pointer;
   }
-  html {
-    @apply font-sans;
+  ::selection {
+    @apply bg-primary text-primary-foreground;
   }
 }
