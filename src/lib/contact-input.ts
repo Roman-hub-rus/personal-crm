@@ -1,8 +1,13 @@
 import { z } from "zod";
 
+import type { ContactFrequency } from "@/db/schema";
+
+import { CONTACT_FREQUENCIES } from "./contact-frequency";
+
 // Shared by the form (client) and server actions. Messages are shown to the user, hence Russian.
 
-export const CONTACT_FIELDS = ["name", "about", "howWeMet", "phone", "email", "notes"] as const;
+// "frequency" is a string in the form too: "" means "Не задано".
+export const CONTACT_FIELDS = ["name", "about", "howWeMet", "phone", "email", "frequency", "notes"] as const;
 
 export type ContactField = (typeof CONTACT_FIELDS)[number];
 export type ContactFormValues = Record<ContactField, string>;
@@ -28,6 +33,9 @@ export const contactInputSchema = z.object({
     (value) => value === null || z.email().safeParse(value).success,
     "Проверьте адрес — похоже, в нём опечатка. Пример: name@example.com",
   ),
+  frequency: z
+    .enum(["", ...CONTACT_FREQUENCIES], "Выберите, как часто общаться, из списка")
+    .transform((value) => (value === "" ? null : value)),
   notes: optionalText(50_000, "Заметки слишком длинные — не больше 50 000 символов"),
 });
 
@@ -39,16 +47,22 @@ export const EMPTY_CONTACT_FORM: ContactFormValues = {
   howWeMet: "",
   phone: "",
   email: "",
+  frequency: "",
   notes: "",
 };
 
-export function toFormValues(contact: { [K in ContactField]: string | null }): ContactFormValues {
+type StoredContact = { [K in Exclude<ContactField, "frequency">]: string | null } & {
+  contactFrequency: ContactFrequency | null;
+};
+
+export function toFormValues(contact: StoredContact): ContactFormValues {
   return {
     name: contact.name ?? "",
     about: contact.about ?? "",
     howWeMet: contact.howWeMet ?? "",
     phone: contact.phone ?? "",
     email: contact.email ?? "",
+    frequency: contact.contactFrequency ?? "",
     notes: contact.notes ?? "",
   };
 }

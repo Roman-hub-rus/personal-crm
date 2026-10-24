@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { ContactAvatar } from "@/components/contact-avatar";
 import { ContactForm } from "@/components/contact-form";
 import { DeleteContactButton } from "@/components/delete-contact-button";
+import { MarkContactedButton } from "@/components/mark-contacted-button";
 import { toFormValues } from "@/lib/contact-input";
 import { getContact, parseContactId } from "@/lib/contacts";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -40,7 +41,8 @@ export default async function ContactPage({ params, searchParams }: PageProps<"/
         {query ? "К результатам поиска" : "Все контакты"}
       </Link>
 
-      <header className="mt-5 mb-7 flex items-center gap-4 sm:gap-5">
+      {/* "Связались" goes under the name on a phone and to the right of it on a wider screen. */}
+      <header className="mt-5 mb-7 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-x-5">
         <ContactAvatar name={contact.name} size="lg" />
         <div className="flex min-w-0 flex-col gap-1.5">
           <p className="font-mono text-xs tracking-eyebrow text-faint uppercase">
@@ -49,6 +51,14 @@ export default async function ContactPage({ params, searchParams }: PageProps<"/
           <h1 className="font-display text-title font-semibold break-words lg:text-title-lg">{contact.name}</h1>
           {contact.about && <p className="text-muted-foreground">{contact.about}</p>}
         </div>
+        {/* Only with a saved frequency; outside the form, so it never touches unsaved edits. */}
+        {contact.contactFrequency !== null && (
+          <MarkContactedButton
+            contactId={contact.id}
+            name={contact.name}
+            className="col-start-2 h-11 gap-2 justify-self-start px-5 text-[15px] sm:col-start-3"
+          />
+        )}
       </header>
 
       <ContactForm
