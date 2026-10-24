@@ -34,6 +34,8 @@ type ContactFormProps =
       contactId: number;
       initialValues: ContactFormValues;
       updatedAtLabel: string;
+      // Shown under the notes, above the bottom bar (e.g. the delete button)
+      footer?: ReactNode;
     };
 
 const SAVE_FAILED_MESSAGE =
@@ -123,6 +125,8 @@ export function ContactForm(props: ContactFormProps) {
         save();
       }}
       onKeyDown={(event) => {
+        // Keys from dialogs rendered in a portal bubble here too; they must not save the form.
+        if (!event.currentTarget.contains(event.target as Node)) return;
         // Ctrl+Enter / Cmd+Enter saves from any field, including the notes.
         if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
           event.preventDefault();
@@ -224,6 +228,8 @@ export function ContactForm(props: ContactFormProps) {
           </Field>
         </CardContent>
       </Card>
+
+      {props.mode === "edit" && props.footer}
 
       <div className="sticky bottom-0 z-10 -mx-5 flex items-center justify-between gap-3 border-t bg-background px-5 py-3">
         <p className="min-w-0 text-sm text-muted-foreground" aria-live="polite">
