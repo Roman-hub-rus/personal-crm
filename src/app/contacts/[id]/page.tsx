@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 
 import { ContactAvatar } from "@/components/contact-avatar";
 import { ContactForm } from "@/components/contact-form";
+import { DeleteContactButton } from "@/components/delete-contact-button";
 import { toFormValues } from "@/lib/contact-input";
 import { getContact, parseContactId } from "@/lib/contacts";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -56,6 +57,7 @@ export default async function ContactPage({ params, searchParams }: PageProps<"/
         contactId={contact.id}
         initialValues={toFormValues(contact)}
         updatedAtLabel={formatDateTime(contact.updatedAt)}
+        footer={<DeleteContactButton contactId={contact.id} name={contact.name} afterDeleteHref={backHref} />}
       />
     </main>
   );

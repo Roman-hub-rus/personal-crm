@@ -22,6 +22,8 @@ export type UpdateContactResult =
   | { ok: true; values: ContactFormValues; updatedAtLabel: string }
   | Failure;
 
+export type DeleteContactResult = { ok: true; name: string } | Failure;
+
 export async function createContact(input: unknown): Promise<CreateContactResult> {
   const parsed = contactInputSchema.safeParse(input);
   if (!parsed.success) {
@@ -64,4 +66,23 @@ export async function updateContact(id: number, input: unknown): Promise<UpdateC
     values: toFormValues(updated),
     updatedAtLabel: formatDateTime(updated.updatedAt),
   };
+}
+
+export async function deleteContact(id: number): Promise<DeleteContactResult> {
+  if (!Number.isInteger(id) || id <= 0) {
+    return { ok: false, message: "Контакт не найден" };
+  }
+
+  const [deleted] = await db
+    .delete(contacts)
+    .where(eq(contacts.id, id))
+    .returning({ name: contacts.name });
+
+  if (!deleted) {
+    return { ok: false, message: "Контакт не найден — возможно, его уже удалили" };
+  }
+
+  // No revalidatePath here: it would re-render the current page, which is the card of the
+  // deleted contact, and flash "not found". The client navigates away and refreshes instead.
+  return { ok: true, name: deleted.name };
 }
