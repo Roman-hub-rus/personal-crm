@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   CONTACT_FIELDS,
@@ -25,6 +26,7 @@ import {
   type ContactFormValues,
   type FieldErrors,
 } from "@/lib/contact-input";
+import { CONTACT_FREQUENCIES, FREQUENCY_NOT_SET_LABEL, FREQUENCY_OPTION_LABELS } from "@/lib/contact-frequency";
 import { cn } from "@/lib/utils";
 
 type ContactFormProps =
@@ -208,6 +210,17 @@ export function ContactForm(props: ContactFormProps) {
               className="min-h-11 resize-none py-2.5"
             />
           </Field>
+
+          <Field field="frequency" label="Как часто общаться" error={errors.frequency}>
+            <FrequencySelect
+              value={values.frequency}
+              onChange={(value) => setField("frequency", value)}
+              invalid={Boolean(errors.frequency)}
+            />
+            <p id="contact-frequency-hint" className="text-[13px] leading-[1.45] text-muted-foreground text-pretty">
+              Если дольше не общаться, контакт появится в блоке «Пора связаться»
+            </p>
+          </Field>
         </CardContent>
       </Card>
 
@@ -328,6 +341,56 @@ function Field({
     </div>
   );
 }
+
+// Radix Select does not allow an empty item value, so "Не задано" is "none" inside the select
+// and "" in the form values.
+const FREQUENCY_NOT_SET = "none";
+
+function FrequencySelect({
+  value,
+  onChange,
+  invalid,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  invalid: boolean;
+}) {
+  return (
+    <Select
+      value={value || FREQUENCY_NOT_SET}
+      onValueChange={(next) => onChange(next === FREQUENCY_NOT_SET ? "" : next)}
+    >
+      <SelectTrigger
+        id="contact-frequency"
+        aria-invalid={invalid || undefined}
+        aria-describedby={invalid ? "contact-frequency-hint contact-frequency-error" : "contact-frequency-hint"}
+        className={cn(
+          "w-full rounded-lg bg-background pr-3 pl-3.5 text-base data-[size=default]:h-11 focus-visible:ring-ring/20 md:text-sm dark:bg-background dark:hover:bg-background",
+          !value && "text-muted-foreground",
+        )}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent
+        position="popper"
+        sideOffset={8}
+        className="w-(--radix-select-trigger-width) rounded-xl border border-input p-1 shadow-lg ring-0"
+      >
+        <SelectItem value={FREQUENCY_NOT_SET} className={itemClassName}>
+          <span className="text-muted-foreground">{FREQUENCY_NOT_SET_LABEL}</span>
+        </SelectItem>
+        {CONTACT_FREQUENCIES.map((frequency) => (
+          <SelectItem key={frequency} value={frequency} className={itemClassName}>
+            {FREQUENCY_OPTION_LABELS[frequency]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+const itemClassName =
+  "h-11 rounded-md pr-9 pl-3 text-base focus:bg-secondary sm:h-9 sm:text-sm [&_svg]:text-primary";
 
 function LabelLink({ href, icon, children }: { href: string; icon: ReactNode; children: ReactNode }) {
   return (

@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq, sql, type SQLWrapper } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
@@ -24,15 +24,35 @@ export type UpdateContactResult =
 
 export type DeleteContactResult = { ok: true; name: string } | Failure;
 
+// Moments go to the browser and back as exact text: a JS Date would drop the microseconds,
+// and the undo would not find the moment it has to undo.
+export type MarkContactedResult =
+  | { ok: true; name: string; markedAt: string; previous: string | null }
+  | Failure;
+
+export type UndoMarkContactedResult = { ok: true; undone: boolean } | Failure;
+
+const MOMENT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/;
+
+const exactMoment = (column: SQLWrapper) =>
+  sql<string | null>`to_char(${column} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
+
 export async function createContact(input: unknown): Promise<CreateContactResult> {
   const parsed = contactInputSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, fieldErrors: toFieldErrors(parsed.error) };
   }
 
+  const { frequency, ...fields } = parsed.data;
   const [created] = await db
     .insert(contacts)
-    .values(parsed.data)
+    .values({
+      ...fields,
+      contactFrequency: frequency,
+      // All moments come from the database clock, like the "Пора связаться" query.
+      lastNoteAt: fields.notes === null ? null : sql`now()`,
+      frequencySetAt: frequency === null ? null : sql`now()`,
+    })
     .returning({ id: contacts.id, name: contacts.name });
 
   revalidatePath("/");
@@ -49,9 +69,22 @@ export async function updateContact(id: number, input: unknown): Promise<UpdateC
     return { ok: false, fieldErrors: toFieldErrors(parsed.error) };
   }
 
+  // The moments are computed against the stored row in the same UPDATE, not against what the
+  // form had loaded: the card may have been changed in another tab since.
+  const { frequency, ...fields } = parsed.data;
   const [updated] = await db
     .update(contacts)
-    .set(parsed.data)
+    .set({
+      ...fields,
+      contactFrequency: frequency,
+      // Any change of the notes text counts as a note, including fixing or deleting old text.
+      lastNoteAt: sql`case when ${contacts.notes} is distinct from ${fields.notes} then now() else ${contacts.lastNoteAt} end`,
+      // Set when the frequency goes from "not set" to a value; switching between values keeps it.
+      frequencySetAt:
+        frequency === null
+          ? null
+          : sql`case when ${contacts.contactFrequency} is null then now() else ${contacts.frequencySetAt} end`,
+    })
     .where(eq(contacts.id, id))
     .returning();
 
@@ -66,6 +99,74 @@ export async function updateContact(id: number, input: unknown): Promise<UpdateC
     values: toFormValues(updated),
     updatedAtLabel: formatDateTime(updated.updatedAt),
   };
+}
+
+// "Связались": remembers the moment of contact right away, without saving the card.
+// Notes, the moment of the last note and "Сохранено · …" in the card stay as they are.
+export async function markContacted(id: number): Promise<MarkContactedResult> {
+  if (!Number.isInteger(id) || id <= 0) {
+    return { ok: false, message: "Контакт не найден" };
+  }
+
+  const marked = await db.transaction(async (tx) => {
+    // Locked, so that two presses at once can't both take the same moment as the previous one.
+    const [current] = await tx
+      .select({ previous: exactMoment(contacts.lastContactedAt) })
+      .from(contacts)
+      .where(eq(contacts.id, id))
+      .for("update");
+    if (!current) return null;
+
+    const [updated] = await tx
+      .update(contacts)
+      .set({ lastContactedAt: sql`now()`, updatedAt: sql`${contacts.updatedAt}` })
+      .where(eq(contacts.id, id))
+      .returning({ name: contacts.name, markedAt: exactMoment(contacts.lastContactedAt) });
+    return { name: updated.name, markedAt: updated.markedAt!, previous: current.previous };
+  });
+
+  if (!marked) {
+    return { ok: false, message: "Контакт не найден — возможно, его удалили" };
+  }
+
+  revalidatePath("/");
+  return { ok: true, ...marked };
+}
+
+// Puts back the moment of contact from before "Связались". Changes nothing if the contact was
+// marked again since (in this or another tab) or deleted.
+export async function undoMarkContacted(
+  id: number,
+  markedAt: string,
+  previous: string | null,
+): Promise<UndoMarkContactedResult> {
+  if (
+    !Number.isInteger(id) ||
+    id <= 0 ||
+    typeof markedAt !== "string" ||
+    !MOMENT_PATTERN.test(markedAt) ||
+    (previous !== null && (typeof previous !== "string" || !MOMENT_PATTERN.test(previous)))
+  ) {
+    return { ok: false, message: "Не удалось отменить отметку" };
+  }
+
+  const undone = await db
+    .update(contacts)
+    .set({
+      lastContactedAt: previous === null ? null : sql`${previous}::timestamptz`,
+      updatedAt: sql`${contacts.updatedAt}`,
+    })
+    .where(
+      and(
+        eq(contacts.id, id),
+        sql`${contacts.lastContactedAt} = ${markedAt}::timestamptz`,
+        previous === null ? undefined : sql`${previous}::timestamptz <= ${markedAt}::timestamptz`,
+      ),
+    )
+    .returning({ id: contacts.id });
+
+  revalidatePath("/");
+  return { ok: true, undone: undone.length > 0 };
 }
 
 export async function deleteContact(id: number): Promise<DeleteContactResult> {

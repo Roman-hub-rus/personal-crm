@@ -5,8 +5,9 @@ import Link from "next/link";
 import { AddContactLink } from "@/components/add-contact-link";
 import { ContactList } from "@/components/contact-list";
 import { ContactSearch } from "@/components/contact-search";
+import { DueContacts } from "@/components/due-contacts";
 import { Button } from "@/components/ui/button";
-import { countContacts, listContacts } from "@/lib/contacts";
+import { countContacts, listContacts, listDueContacts } from "@/lib/contacts";
 import { formatContactsCount } from "@/lib/format";
 import { MAX_SEARCH_LENGTH } from "@/lib/search";
 
@@ -21,7 +22,12 @@ export default async function ContactsPage({ searchParams }: PageProps<"/">) {
   const query = firstParam(params.q).trim().slice(0, MAX_SEARCH_LENGTH);
   const addedId = Number(firstParam(params.added)) || null;
 
-  const [items, total] = await Promise.all([listContacts(query), countContacts()]);
+  // "Пора связаться" is hidden while searching, so it is not even queried then.
+  const [items, total, dueContacts] = await Promise.all([
+    listContacts(query),
+    countContacts(),
+    query ? [] : listDueContacts(),
+  ]);
 
   return (
     <main className="mx-auto w-full max-w-3xl px-5 pb-16">
@@ -42,6 +48,8 @@ export default async function ContactsPage({ searchParams }: PageProps<"/">) {
           </p>
         )}
       </div>
+
+      {dueContacts.length > 0 && <DueContacts items={dueContacts} />}
 
       {total === 0 ? (
         <EmptyState />

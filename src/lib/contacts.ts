@@ -1,10 +1,11 @@
 import "server-only";
 
-import { and, asc, count, eq, sql } from "drizzle-orm";
+import { and, asc, count, eq, isNotNull, sql } from "drizzle-orm";
 import { cache } from "react";
 
 import { db } from "@/db";
-import { contacts } from "@/db/schema";
+import { keepInTouchSql } from "@/db/keep-in-touch-sql";
+import { contacts, type ContactFrequency } from "@/db/schema";
 
 import { searchWords } from "./search";
 
@@ -38,6 +39,31 @@ export async function listContacts(search = ""): Promise<ContactListItem[]> {
     .from(contacts)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(sql`${contacts.name} collate "ru-RU-x-icu"`, asc(contacts.id));
+}
+
+export type DueContact = {
+  id: number;
+  name: string;
+  frequency: ContactFrequency;
+  // The later of the last note and the last "Связались"; null if neither is known.
+  lastContactAt: Date | null;
+  frequencySetAt: Date | null;
+};
+
+// "Пора связаться": contacts whose period has run out, the most overdue first.
+export async function listDueContacts(): Promise<DueContact[]> {
+  const { lastContactAt, dueAt } = keepInTouchSql();
+  return db
+    .select({
+      id: contacts.id,
+      name: contacts.name,
+      frequency: sql<ContactFrequency>`${contacts.contactFrequency}`,
+      lastContactAt: sql`${lastContactAt}`.mapWith(contacts.lastNoteAt),
+      frequencySetAt: contacts.frequencySetAt,
+    })
+    .from(contacts)
+    .where(and(isNotNull(contacts.contactFrequency), sql`${dueAt} < now()`))
+    .orderBy(dueAt, sql`${contacts.name} collate "ru-RU-x-icu"`, asc(contacts.id));
 }
 
 export async function countContacts(): Promise<number> {

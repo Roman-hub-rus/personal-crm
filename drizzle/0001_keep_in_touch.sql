@@ -1,0 +1,5 @@
+CREATE TYPE "public"."contact_frequency" AS ENUM('week', 'month', 'quarter', 'year');--> statement-breakpoint
+ALTER TABLE "contacts" ADD COLUMN "contact_frequency" "contact_frequency";--> statement-breakpoint
+ALTER TABLE "contacts" ADD COLUMN "last_note_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "contacts" ADD COLUMN "last_contacted_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "contacts" ADD COLUMN "frequency_set_at" timestamp with time zone;

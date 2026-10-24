@@ -1,7 +1,7 @@
 // Deterministic generator of realistic test contacts (Russian names and texts).
 // The same seed always produces the same contacts.
 
-import type { NewContact } from "./schema";
+import { contactFrequency, type ContactFrequency, type NewContact } from "./schema";
 
 type Gender = "m" | "f";
 
@@ -277,6 +277,45 @@ function makeNotes(random: Random, gender: Gender, from: Date, to: Date) {
   return { notes: lines.join("\n\n"), lastNoteAt: dates[dates.length - 1] };
 }
 
+// Shortest and longest period of each frequency, in days.
+const PERIOD_DAYS: Record<ContactFrequency, [number, number]> = {
+  week: [7, 7],
+  month: [28, 31],
+  quarter: [89, 92],
+  year: [365, 366],
+};
+
+// About half of the contacts given a frequency are overdue: 10–15 rows in "Пора связаться".
+const OVERDUE_SHARE = 0.5;
+
+// Frequency and moments of contact for "Пора связаться". The period start stays at least 3 days
+// away from the end of the period, so the same contacts are overdue on whatever day the seed runs.
+function makeKeepInTouch(random: Random, now: Date, hasNotes: boolean) {
+  const frequency = random.pick(contactFrequency.enumValues);
+  const [shortest, longest] = PERIOD_DAYS[frequency];
+  const startDaysAgo = random.chance(OVERDUE_SHARE)
+    ? longest + random.int(3, shortest + 3)
+    : random.int(0, shortest - 3);
+  const start = new Date(now.getTime() - (startDaysAgo + random.next() * 0.9) * DAY_MS);
+  const daysBeforeStart = (days: number) => new Date(start.getTime() - days * DAY_MS);
+
+  // The period starts at the latest of the three moments; which one it is differs from contact to contact.
+  const kind = random.pick(hasNotes ? (["note", "contacted", "chosen"] as const) : (["contacted", "chosen"] as const));
+  if (kind === "chosen") {
+    return { contactFrequency: frequency, frequencySetAt: start, lastNoteAt: null, lastContactedAt: null };
+  }
+  const frequencySetAt = daysBeforeStart(random.int(1, 60));
+  if (kind === "note") {
+    return { contactFrequency: frequency, frequencySetAt, lastNoteAt: start, lastContactedAt: null };
+  }
+  return {
+    contactFrequency: frequency,
+    frequencySetAt,
+    lastNoteAt: hasNotes ? daysBeforeStart(random.int(5, 120)) : null,
+    lastContactedAt: start,
+  };
+}
+
 function makePhone(random: Random): string | null {
   if (random.chance(0.12)) return null;
   const digits = (length: number) =>
@@ -305,6 +344,8 @@ function makeEmail(random: Random, firstName: string, lastName: string): string 
 
 export function generateFakeContacts(count: number, seed = 20261008, now = new Date()): NewContact[] {
   const random = createRandom(seed);
+  // A separate stream: adding "Пора связаться" data does not change the other contacts.
+  const keepInTouchRandom = createRandom(seed + 1);
   const usedNames = new Set<string>();
   const result: NewContact[] = [];
   const fourYearsAgo = new Date(now.getTime() - 4 * 365 * DAY_MS);
@@ -319,8 +360,7 @@ export function generateFakeContacts(count: number, seed = 20261008, now = new D
       fourYearsAgo.getTime() + random.next() * (now.getTime() - fourYearsAgo.getTime() - DAY_MS),
     );
     const { notes, lastNoteAt } = makeNotes(random, gender, createdAt, now);
-
-    result.push({
+    const contact: NewContact = {
       name,
       about: makeAbout(random, gender),
       howWeMet: makeHowWeMet(random, gender),
@@ -329,7 +369,18 @@ export function generateFakeContacts(count: number, seed = 20261008, now = new D
       notes,
       createdAt,
       updatedAt: lastNoteAt ?? createdAt,
-    });
+    };
+
+    // Only contacts added long ago, so that every moment falls after the contact was added.
+    if (createdAt.getTime() < now.getTime() - 800 * DAY_MS && keepInTouchRandom.chance(0.06)) {
+      const keepInTouch = makeKeepInTouch(keepInTouchRandom, now, notes !== null);
+      Object.assign(contact, keepInTouch);
+      contact.updatedAt = new Date(
+        Math.max(contact.updatedAt!.getTime(), keepInTouch.frequencySetAt.getTime(), keepInTouch.lastNoteAt?.getTime() ?? 0),
+      );
+    }
+
+    result.push(contact);
   }
 
   return result;
