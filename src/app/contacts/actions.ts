@@ -1,10 +1,11 @@
 "use server";
 
-import { and, eq, sql, type SQLWrapper } from "drizzle-orm";
+import { and, eq, inArray, or, sql, type SQLWrapper } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
-import { contacts } from "@/db/schema";
+import { contactGroups, contacts, groups } from "@/db/schema";
+import type { GroupOption } from "@/lib/contact-groups";
 import {
   contactInputSchema,
   toFieldErrors,
@@ -19,7 +20,7 @@ type Failure = { ok: false; fieldErrors?: FieldErrors; message?: string };
 export type CreateContactResult = { ok: true; id: number; name: string } | Failure;
 
 export type UpdateContactResult =
-  | { ok: true; values: ContactFormValues; updatedAtLabel: string }
+  | { ok: true; values: ContactFormValues; updatedAtLabel: string; allGroups: GroupOption[] }
   | Failure;
 
 export type DeleteContactResult = { ok: true; name: string } | Failure;
@@ -37,25 +38,65 @@ const MOMENT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/;
 const exactMoment = (column: SQLWrapper) =>
   sql<string | null>`to_char(${column} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+// Creates groups typed but not yet saved (picking up an existing one case-insensitively instead
+// of making a duplicate), drops ids of groups that were deleted in the meantime, and returns the
+// final set of group ids the contact should belong to.
+async function resolveGroupIds(tx: Tx, groupIds: number[], newGroups: string[]): Promise<number[]> {
+  const validExistingIds = groupIds.length
+    ? (await tx.select({ id: groups.id }).from(groups).where(inArray(groups.id, groupIds))).map((row) => row.id)
+    : [];
+
+  if (newGroups.length === 0) {
+    return Array.from(new Set(validExistingIds));
+  }
+
+  await tx
+    .insert(groups)
+    .values(newGroups.map((name) => ({ name })))
+    .onConflictDoNothing();
+  const matchedByName = await tx
+    .select({ id: groups.id })
+    .from(groups)
+    .where(or(...newGroups.map((name) => sql`lower(${groups.name}) = lower(${name})`)));
+
+  return Array.from(new Set([...validExistingIds, ...matchedByName.map((row) => row.id)]));
+}
+
+async function saveContactGroups(tx: Tx, contactId: number, groupIds: number[]) {
+  await tx.delete(contactGroups).where(eq(contactGroups.contactId, contactId));
+  if (groupIds.length > 0) {
+    await tx.insert(contactGroups).values(groupIds.map((groupId) => ({ contactId, groupId })));
+  }
+}
+
 export async function createContact(input: unknown): Promise<CreateContactResult> {
   const parsed = contactInputSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, fieldErrors: toFieldErrors(parsed.error) };
   }
 
-  const { frequency, ...fields } = parsed.data;
-  const [created] = await db
-    .insert(contacts)
-    .values({
-      ...fields,
-      contactFrequency: frequency,
-      // All moments come from the database clock, like the "Пора связаться" query.
-      lastNoteAt: fields.notes === null ? null : sql`now()`,
-      frequencySetAt: frequency === null ? null : sql`now()`,
-    })
-    .returning({ id: contacts.id, name: contacts.name });
+  const { frequency, groupIds, newGroups, ...fields } = parsed.data;
+  const created = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(contacts)
+      .values({
+        ...fields,
+        contactFrequency: frequency,
+        // All moments come from the database clock, like the "Пора связаться" query.
+        lastNoteAt: fields.notes === null ? null : sql`now()`,
+        frequencySetAt: frequency === null ? null : sql`now()`,
+      })
+      .returning({ id: contacts.id, name: contacts.name });
+
+    const finalGroupIds = await resolveGroupIds(tx, groupIds, newGroups);
+    await saveContactGroups(tx, created.id, finalGroupIds);
+    return created;
+  });
 
   revalidatePath("/");
+  revalidatePath("/groups");
   return { ok: true, id: created.id, name: created.name };
 }
 
@@ -71,33 +112,51 @@ export async function updateContact(id: number, input: unknown): Promise<UpdateC
 
   // The moments are computed against the stored row in the same UPDATE, not against what the
   // form had loaded: the card may have been changed in another tab since.
-  const { frequency, ...fields } = parsed.data;
-  const [updated] = await db
-    .update(contacts)
-    .set({
-      ...fields,
-      contactFrequency: frequency,
-      // Any change of the notes text counts as a note, including fixing or deleting old text.
-      lastNoteAt: sql`case when ${contacts.notes} is distinct from ${fields.notes} then now() else ${contacts.lastNoteAt} end`,
-      // Set when the frequency goes from "not set" to a value; switching between values keeps it.
-      frequencySetAt:
-        frequency === null
-          ? null
-          : sql`case when ${contacts.contactFrequency} is null then now() else ${contacts.frequencySetAt} end`,
-    })
-    .where(eq(contacts.id, id))
-    .returning();
+  const { frequency, groupIds, newGroups, ...fields } = parsed.data;
+  const result = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(contacts)
+      .set({
+        ...fields,
+        contactFrequency: frequency,
+        // Any change of the notes text counts as a note, including fixing or deleting old text.
+        lastNoteAt: sql`case when ${contacts.notes} is distinct from ${fields.notes} then now() else ${contacts.lastNoteAt} end`,
+        // Set when the frequency goes from "not set" to a value; switching between values keeps it.
+        frequencySetAt:
+          frequency === null
+            ? null
+            : sql`case when ${contacts.contactFrequency} is null then now() else ${contacts.frequencySetAt} end`,
+      })
+      .where(eq(contacts.id, id))
+      .returning();
+    if (!updated) return null;
 
-  if (!updated) {
+    const finalGroupIds = await resolveGroupIds(tx, groupIds, newGroups);
+    await saveContactGroups(tx, id, finalGroupIds);
+    const contactGroupRows =
+      finalGroupIds.length > 0
+        ? await tx.select({ id: groups.id, name: groups.name }).from(groups).where(inArray(groups.id, finalGroupIds))
+        : [];
+    const allGroups = await tx
+      .select({ id: groups.id, name: groups.name })
+      .from(groups)
+      .orderBy(sql`${groups.name} collate "ru-RU-x-icu"`);
+
+    return { updated, contactGroupRows, allGroups };
+  });
+
+  if (!result) {
     return { ok: false, message: "Контакт не найден — возможно, его удалили" };
   }
 
   revalidatePath("/");
   revalidatePath(`/contacts/${id}`);
+  revalidatePath("/groups");
   return {
     ok: true,
-    values: toFormValues(updated),
-    updatedAtLabel: formatDateTime(updated.updatedAt),
+    values: toFormValues({ ...result.updated, groups: result.contactGroupRows }),
+    updatedAtLabel: formatDateTime(result.updated.updatedAt),
+    allGroups: result.allGroups,
   };
 }
 

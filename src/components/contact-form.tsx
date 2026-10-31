@@ -14,12 +14,14 @@ import {
 import { toast } from "sonner";
 
 import { createContact, updateContact } from "@/app/contacts/actions";
+import { ContactGroupsField } from "@/components/contact-groups-field";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { areGroupSelectionsEqual, type GroupOption } from "@/lib/contact-groups";
 import {
   CONTACT_FIELDS,
   type ContactField,
@@ -30,12 +32,13 @@ import { CONTACT_FREQUENCIES, FREQUENCY_NOT_SET_LABEL, FREQUENCY_OPTION_LABELS }
 import { cn } from "@/lib/utils";
 
 type ContactFormProps =
-  | { mode: "create"; initialValues: ContactFormValues; cancelHref: string }
+  | { mode: "create"; initialValues: ContactFormValues; cancelHref: string; allGroups: GroupOption[] }
   | {
       mode: "edit";
       contactId: number;
       initialValues: ContactFormValues;
       updatedAtLabel: string;
+      allGroups: GroupOption[];
       // Shown under the notes, above the bottom bar (e.g. the delete button)
       footer?: ReactNode;
     };
@@ -48,13 +51,19 @@ export function ContactForm(props: ContactFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const [values, setValues] = useState(props.initialValues);
   const [savedValues, setSavedValues] = useState(props.initialValues);
+  const [allGroups, setAllGroups] = useState(props.allGroups);
   const [updatedAtLabel, setUpdatedAtLabel] = useState(
     props.mode === "edit" ? props.updatedAtLabel : "",
   );
   const [errors, setErrors] = useState<FieldErrors>({});
   const [isPending, startTransition] = useTransition();
 
-  const isDirty = CONTACT_FIELDS.some((field) => values[field] !== savedValues[field]);
+  const isDirty =
+    CONTACT_FIELDS.some((field) => values[field] !== savedValues[field]) ||
+    !areGroupSelectionsEqual(
+      { groupIds: values.groupIds, newGroups: values.newGroups },
+      { groupIds: savedValues.groupIds, newGroups: savedValues.newGroups },
+    );
 
   // Warn before closing the tab with unsaved changes.
   useEffect(() => {
@@ -97,6 +106,7 @@ export function ContactForm(props: ContactFormProps) {
         setErrors({});
         setValues(result.values);
         setSavedValues(result.values);
+        setAllGroups(result.allGroups);
         setUpdatedAtLabel(result.updatedAtLabel);
         toast.success("Изменения сохранены");
       } catch {
@@ -221,6 +231,19 @@ export function ContactForm(props: ContactFormProps) {
               Если дольше не общаться, контакт появится в блоке «Пора связаться»
             </p>
           </Field>
+
+          <div className="flex flex-col gap-2 sm:col-span-2">
+            <Label className="gap-1 text-ink-2">Группы</Label>
+            <ContactGroupsField
+              allGroups={allGroups}
+              value={{ groupIds: values.groupIds, newGroups: values.newGroups }}
+              onChange={(next) => {
+                setValues((previous) => ({ ...previous, ...next }));
+                if (errors.groups) setErrors((previous) => ({ ...previous, groups: undefined }));
+              }}
+              error={errors.groups}
+            />
+          </div>
         </CardContent>
       </Card>
 

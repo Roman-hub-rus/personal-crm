@@ -5,13 +5,23 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { Input } from "@/components/ui/input";
+import { homeHref } from "@/lib/contact-groups";
 import { MAX_SEARCH_LENGTH } from "@/lib/search";
 import { cn } from "@/lib/utils";
 
 const DEBOUNCE_MS = 250;
 
 // Search by name. The query lives in the URL (?q=...), the server does the filtering.
-export function ContactSearch({ initialQuery, className }: { initialQuery: string; className?: string }) {
+// Switching the query keeps the selected group, which lives in the same URL (?group=...).
+export function ContactSearch({
+  initialQuery,
+  groupId,
+  className,
+}: {
+  initialQuery: string;
+  groupId: number | null;
+  className?: string;
+}) {
   const router = useRouter();
   const [value, setValue] = useState(initialQuery);
   const [isPending, startTransition] = useTransition();
@@ -21,8 +31,7 @@ export function ContactSearch({ initialQuery, className }: { initialQuery: strin
 
   function applyQuery(query: string) {
     clearTimeout(timer.current);
-    const trimmed = query.trim();
-    const url = trimmed ? `/?${new URLSearchParams({ q: trimmed })}` : "/";
+    const url = homeHref({ query: query.trim(), groupId });
     startTransition(() => router.replace(url, { scroll: false }));
   }
 

@@ -7,9 +7,12 @@ import { ContactList } from "@/components/contact-list";
 import { ContactSearch } from "@/components/contact-search";
 import { DueContacts } from "@/components/due-contacts";
 import { Button } from "@/components/ui/button";
+import { groupFilterItems, parseGroupId, type GroupFilterItem } from "@/lib/contact-groups";
 import { countContacts, listContacts, listDueContacts } from "@/lib/contacts";
 import { formatContactsCount } from "@/lib/format";
+import { listGroups } from "@/lib/groups";
 import { MAX_SEARCH_LENGTH } from "@/lib/search";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Контакты" };
 
@@ -21,13 +24,18 @@ export default async function ContactsPage({ searchParams }: PageProps<"/">) {
   const params = await searchParams;
   const query = firstParam(params.q).trim().slice(0, MAX_SEARCH_LENGTH);
   const addedId = Number(firstParam(params.added)) || null;
+  const allGroups = await listGroups();
+  const groupId = parseGroupId(firstParam(params.group), allGroups);
+  const selectedGroup = groupId === null ? null : (allGroups.find((group) => group.id === groupId) ?? null);
 
   // "Пора связаться" is hidden while searching, so it is not even queried then.
   const [items, total, dueContacts] = await Promise.all([
-    listContacts(query),
+    listContacts(query, groupId),
     countContacts(),
-    query ? [] : listDueContacts(),
+    query ? [] : listDueContacts(groupId),
   ]);
+
+  const filterItems = groupFilterItems(allGroups, groupId, query);
 
   return (
     <main className="mx-auto w-full max-w-3xl px-5 pb-16">
@@ -41,24 +49,47 @@ export default async function ContactsPage({ searchParams }: PageProps<"/">) {
           </div>
           <AddContactLink iconOnlyOnMobile>Добавить контакт</AddContactLink>
         </div>
-        {total > 0 && <ContactSearch initialQuery={query} className="mt-5" />}
-        {query && items.length > 0 && (
+        {total > 0 && <ContactSearch initialQuery={query} groupId={groupId} className="mt-5" />}
+        {filterItems.length > 0 && <GroupFilterRow items={filterItems} />}
+        {(query || groupId !== null) && items.length > 0 && (
           <p className="mt-3 px-1 text-sm text-muted-foreground" aria-live="polite">
             Найдено: {formatContactsCount(items.length)} из {total.toLocaleString("ru-RU")}
           </p>
         )}
       </div>
 
-      {dueContacts.length > 0 && <DueContacts items={dueContacts} />}
+      {dueContacts.length > 0 && <DueContacts items={dueContacts} groupId={groupId} />}
 
       {total === 0 ? (
         <EmptyState />
       ) : items.length === 0 ? (
-        <NothingFound query={query} />
+        <NothingFound query={query} groupName={selectedGroup?.name ?? null} />
       ) : (
-        <ContactList items={items} query={query} addedId={addedId} />
+        <ContactList items={items} query={query} groupId={groupId} addedId={addedId} />
       )}
     </main>
+  );
+}
+
+function GroupFilterRow({ items }: { items: GroupFilterItem[] }) {
+  return (
+    <div className="-mx-5 mt-3 flex gap-2 overflow-x-auto px-5 pb-1 whitespace-nowrap [scrollbar-width:none]">
+      {items.map((item) => (
+        <Link
+          key={item.id ?? "all"}
+          href={item.href}
+          aria-current={item.isSelected ? "true" : undefined}
+          className={cn(
+            "shrink-0 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
+            item.isSelected
+              ? "border-primary bg-primary/10 text-primary"
+              : "border-border text-muted-foreground hover:bg-card",
+          )}
+        >
+          {item.name}
+        </Link>
+      ))}
+    </div>
   );
 }
 
@@ -75,12 +106,28 @@ function EmptyState() {
   );
 }
 
-function NothingFound({ query }: { query: string }) {
+function NothingFound({ query, groupName }: { query: string; groupName: string | null }) {
+  if (!query && groupName !== null) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-20 text-center">
+        <UsersRoundIcon aria-hidden className="size-10 text-faint" />
+        <p className="font-display text-lg font-semibold text-balance break-words">
+          В группе «{groupName}» пока никого нет
+        </p>
+        <p className="max-w-sm text-muted-foreground text-pretty">
+          Добавить человека в группу можно в его карточке, в поле «Группы»
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col items-center gap-3 py-20 text-center">
       <SearchXIcon aria-hidden className="size-10 text-faint" />
       <p className="font-display text-lg font-semibold text-balance break-words">
-        Никого не нашли по запросу «{query}»
+        {groupName !== null
+          ? `Никого не нашли по запросу «${query}» в группе «${groupName}»`
+          : `Никого не нашли по запросу «${query}»`}
       </p>
       <p className="text-muted-foreground">Проверьте написание или добавьте нового человека.</p>
       <Button asChild variant="outline" size="lg" className="mt-3">

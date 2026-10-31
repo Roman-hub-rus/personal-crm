@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { ContactAvatar } from "@/components/contact-avatar";
 import { HighlightedText } from "@/components/highlighted-text";
 import { Badge } from "@/components/ui/badge";
+import { contactHref, splitGroupLabels } from "@/lib/contact-groups";
 import type { ContactListItem } from "@/lib/contacts";
 import { searchWords } from "@/lib/search";
 import { cn } from "@/lib/utils";
@@ -16,6 +17,7 @@ import { cn } from "@/lib/utils";
 type ContactListProps = {
   items: ContactListItem[];
   query: string;
+  groupId: number | null;
   addedId: number | null;
 };
 
@@ -33,9 +35,8 @@ function groupByFirstLetter(items: ContactListItem[]) {
   return groups;
 }
 
-export function ContactList({ items, query, addedId }: ContactListProps) {
+export function ContactList({ items, query, groupId, addedId }: ContactListProps) {
   const words = searchWords(query);
-  const cardQuery = query ? `?${new URLSearchParams({ q: query })}` : "";
 
   // Bring a just-added contact into view.
   useEffect(() => {
@@ -56,7 +57,7 @@ export function ContactList({ items, query, addedId }: ContactListProps) {
               <ContactRow
                 key={contact.id}
                 contact={contact}
-                href={`/contacts/${contact.id}${cardQuery}`}
+                href={contactHref(contact.id, { query, groupId })}
                 words={words}
                 isNew={contact.id === addedId}
               />
@@ -79,6 +80,8 @@ function ContactRow({
   words: string[];
   isNew: boolean;
 }) {
+  const { shown, hiddenCount } = splitGroupLabels(contact.groups);
+
   return (
     <li id={`contact-${contact.id}`}>
       <Link
@@ -99,6 +102,20 @@ function ContactRow({
             {isNew && <Badge>Новый</Badge>}
           </div>
           {contact.about && <p className="truncate text-sm text-muted-foreground">{contact.about}</p>}
+          {shown.length > 0 && (
+            <div className="mt-1 flex items-center gap-1 overflow-hidden whitespace-nowrap">
+              {shown.map((name) => (
+                <Badge key={name} variant="secondary" className="shrink-0">
+                  {name}
+                </Badge>
+              ))}
+              {hiddenCount > 0 && (
+                <Badge variant="secondary" className="shrink-0">
+                  +{hiddenCount}
+                </Badge>
+              )}
+            </div>
+          )}
         </div>
         <div className="hidden shrink-0 font-mono text-[13px] text-muted-foreground sm:block">
           {contact.phone ?? contact.email}
