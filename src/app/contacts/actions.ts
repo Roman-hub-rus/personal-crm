@@ -20,16 +20,13 @@ type Failure = { ok: false; fieldErrors?: FieldErrors; message?: string };
 export type CreateContactResult = { ok: true; id: number; name: string } | Failure;
 
 export type UpdateContactResult =
-  | { ok: true; values: ContactFormValues; updatedAtLabel: string; allGroups: GroupOption[] }
-  | Failure;
+  { ok: true; values: ContactFormValues; updatedAtLabel: string; allGroups: GroupOption[] } | Failure;
 
 export type DeleteContactResult = { ok: true; name: string } | Failure;
 
 // Moments go to the browser and back as exact text: a JS Date would drop the microseconds,
 // and the undo would not find the moment it has to undo.
-export type MarkContactedResult =
-  | { ok: true; name: string; markedAt: string; previous: string | null }
-  | Failure;
+export type MarkContactedResult = { ok: true; name: string; markedAt: string; previous: string | null } | Failure;
 
 export type UndoMarkContactedResult = { ok: true; undone: boolean } | Failure;
 
@@ -233,10 +230,7 @@ export async function deleteContact(id: number): Promise<DeleteContactResult> {
     return { ok: false, message: "Контакт не найден" };
   }
 
-  const [deleted] = await db
-    .delete(contacts)
-    .where(eq(contacts.id, id))
-    .returning({ name: contacts.name });
+  const [deleted] = await db.delete(contacts).where(eq(contacts.id, id)).returning({ name: contacts.name });
 
   if (!deleted) {
     return { ok: false, message: "Контакт не найден — возможно, его уже удалили" };

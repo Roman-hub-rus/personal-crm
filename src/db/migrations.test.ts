@@ -39,9 +39,7 @@ async function migrationsFolderBeforeGroups(filesBeforeGroups: string[]) {
 
   const journal = JSON.parse(await readFile(path.join(MIGRATIONS_DIR, "meta", "_journal.json"), "utf8"));
   const tagsBeforeGroups = filesBeforeGroups.map((file) => file.replace(/\.sql$/, ""));
-  const entriesBeforeGroups = journal.entries.filter((entry: { tag: string }) =>
-    tagsBeforeGroups.includes(entry.tag),
-  );
+  const entriesBeforeGroups = journal.entries.filter((entry: { tag: string }) => tagsBeforeGroups.includes(entry.tag));
   await writeFile(
     path.join(dir, "meta", "_journal.json"),
     JSON.stringify({ ...journal, entries: entriesBeforeGroups }),
@@ -89,7 +87,10 @@ test("Существующие контакты после запуска", asyn
     // Now apply every migration, including the one adding groups.
     await migrate(db, { migrationsFolder: MIGRATIONS_DIR });
 
-    const [contact] = await db.select().from(contacts).where(sql`${contacts.id} = ${id}`);
+    const [contact] = await db
+      .select()
+      .from(contacts)
+      .where(sql`${contacts.id} = ${id}`);
     expect(contact.name).toBe("Борис Орлов");
     expect(contact.about).toBe("Сосед");
 

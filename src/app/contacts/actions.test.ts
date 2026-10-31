@@ -22,7 +22,10 @@ function baseInput(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 async function membersOf(groupId: number): Promise<number[]> {
-  const rows = await db.select({ contactId: contactGroups.contactId }).from(contactGroups).where(eq(contactGroups.groupId, groupId));
+  const rows = await db
+    .select({ contactId: contactGroups.contactId })
+    .from(contactGroups)
+    .where(eq(contactGroups.groupId, groupId));
   return rows.map((row) => row.contactId);
 }
 
@@ -133,7 +136,10 @@ describe("updateContact", () => {
 
     const result = await updateContact(created.id, baseInput({ name: "Новое имя", newGroups: ["а".repeat(51)] }));
 
-    expect(result).toMatchObject({ ok: false, fieldErrors: { groups: "Название слишком длинное — не больше 50 символов" } });
+    expect(result).toMatchObject({
+      ok: false,
+      fieldErrors: { groups: "Название слишком длинное — не больше 50 символов" },
+    });
     const [stillStored] = await db.select({ name: contacts.name }).from(contacts).where(eq(contacts.id, created.id));
     expect(stillStored.name).toBe("Исходное");
   });

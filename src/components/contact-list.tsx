@@ -49,9 +49,7 @@ export function ContactList({ items, query, groupId, addedId }: ContactListProps
     <div className="pt-2">
       {groupByFirstLetter(items).map((group) => (
         <section key={group.letter} aria-label={`На букву ${group.letter}`}>
-          <h2 className="px-3 pt-5 pb-1.5 font-mono text-xs tracking-eyebrow text-faint uppercase">
-            {group.letter}
-          </h2>
+          <h2 className="px-3 pt-5 pb-1.5 font-mono text-xs tracking-eyebrow text-faint uppercase">{group.letter}</h2>
           <ul>
             {group.items.map((contact) => (
               <ContactRow

@@ -22,8 +22,7 @@ import { homeHref } from "@/lib/contact-groups";
 import { formatContactsCount } from "@/lib/format";
 import type { GroupWithCount } from "@/lib/groups";
 
-const FAILED_MESSAGE =
-  "Не удалось сохранить. Проверьте, что приложение и база данных запущены, и попробуйте ещё раз.";
+const FAILED_MESSAGE = "Не удалось сохранить. Проверьте, что приложение и база данных запущены, и попробуйте ещё раз.";
 
 function sortByName<T extends { name: string }>(items: T[]): T[] {
   return [...items].sort((a, b) => a.name.localeCompare(b.name, "ru"));

@@ -46,12 +46,14 @@ export const contactInputSchema = z.object({
     .enum(["", ...CONTACT_FREQUENCIES], "Выберите, как часто общаться, из списка")
     .transform((value) => (value === "" ? null : value)),
   notes: optionalText(50_000, "Заметки слишком длинные — не больше 50 000 символов"),
-  groupIds: z
-    .array(z.number().int().positive())
-    .refine(withoutDuplicates<number>((id) => String(id)), "Повторяющиеся группы"),
-  newGroups: z
-    .array(groupNameSchema)
-    .refine(withoutDuplicates<string>((name) => name.toLowerCase()), "Повторяющиеся группы"),
+  groupIds: z.array(z.number().int().positive()).refine(
+    withoutDuplicates<number>((id) => String(id)),
+    "Повторяющиеся группы",
+  ),
+  newGroups: z.array(groupNameSchema).refine(
+    withoutDuplicates<string>((name) => name.toLowerCase()),
+    "Повторяющиеся группы",
+  ),
 });
 
 export type ContactInput = z.output<typeof contactInputSchema>;

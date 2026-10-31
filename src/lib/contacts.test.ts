@@ -29,9 +29,7 @@ describe("listContacts", () => {
   });
 
   test("фильтрует по имени без учёта регистра и «ё»", async () => {
-    await db
-      .insert(contacts)
-      .values([{ name: "Алёна Иванова" }, { name: "Елена Петрова" }, { name: "Борис Орлов" }]);
+    await db.insert(contacts).values([{ name: "Алёна Иванова" }, { name: "Елена Петрова" }, { name: "Борис Орлов" }]);
 
     const result = await listContacts("АЛЕНА");
 

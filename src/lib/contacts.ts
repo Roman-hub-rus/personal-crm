@@ -45,9 +45,7 @@ function inGroup(groupId: number) {
 // `groupId` (when given) keeps only the people in that group.
 export async function listContacts(search = "", groupId: number | null = null): Promise<ContactListItem[]> {
   const normalizedName = sql`replace(lower(${contacts.name}), 'ё', 'е')`;
-  const conditions = searchWords(search).map(
-    (word) => sql`${normalizedName} like ${`%${escapeLike(word)}%`}`,
-  );
+  const conditions = searchWords(search).map((word) => sql`${normalizedName} like ${`%${escapeLike(word)}%`}`);
   if (groupId !== null) conditions.push(inGroup(groupId));
 
   return db

@@ -20,9 +20,7 @@ function sameGroupName(a: string, b: string): boolean {
 // What happens when the user types a group name and confirms it in the "Группы" field:
 // picks the existing group (case-insensitively) or proposes a new one.
 export type PickedGroup =
-  | { kind: "error"; message: string }
-  | { kind: "existing"; id: number }
-  | { kind: "new"; name: string };
+  { kind: "error"; message: string } | { kind: "existing"; id: number } | { kind: "new"; name: string };
 
 export function pickGroupByName(input: string, groups: GroupOption[]): PickedGroup {
   const parsed = groupNameSchema.safeParse(input);

@@ -28,7 +28,12 @@ export function ContactGroupsField({
   const [draftError, setDraftError] = useState<string | undefined>();
 
   const chips: Chip[] = [
-    ...allGroups.map((group) => ({ key: `existing-${group.id}`, name: group.name, kind: "existing" as const, id: group.id })),
+    ...allGroups.map((group) => ({
+      key: `existing-${group.id}`,
+      name: group.name,
+      kind: "existing" as const,
+      id: group.id,
+    })),
     ...value.newGroups.map((name) => ({ key: `new-${name}`, name, kind: "new" as const })),
   ].sort((a, b) => a.name.localeCompare(b.name, "ru"));
 
@@ -138,4 +143,3 @@ export function ContactGroupsField({
     </div>
   );
 }
-

@@ -3,14 +3,7 @@
 import { CircleCheckIcon, Loader2Icon, MailIcon, PhoneIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  useEffect,
-  useRef,
-  useState,
-  useTransition,
-  type ChangeEvent,
-  type ReactNode,
-} from "react";
+import { useEffect, useRef, useState, useTransition, type ChangeEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { createContact, updateContact } from "@/app/contacts/actions";
@@ -22,12 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { areGroupSelectionsEqual, type GroupOption } from "@/lib/contact-groups";
-import {
-  CONTACT_FIELDS,
-  type ContactField,
-  type ContactFormValues,
-  type FieldErrors,
-} from "@/lib/contact-input";
+import { CONTACT_FIELDS, type ContactField, type ContactFormValues, type FieldErrors } from "@/lib/contact-input";
 import { CONTACT_FREQUENCIES, FREQUENCY_NOT_SET_LABEL, FREQUENCY_OPTION_LABELS } from "@/lib/contact-frequency";
 import { cn } from "@/lib/utils";
 
@@ -52,9 +40,7 @@ export function ContactForm(props: ContactFormProps) {
   const [values, setValues] = useState(props.initialValues);
   const [savedValues, setSavedValues] = useState(props.initialValues);
   const [allGroups, setAllGroups] = useState(props.allGroups);
-  const [updatedAtLabel, setUpdatedAtLabel] = useState(
-    props.mode === "edit" ? props.updatedAtLabel : "",
-  );
+  const [updatedAtLabel, setUpdatedAtLabel] = useState(props.mode === "edit" ? props.updatedAtLabel : "");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [isPending, startTransition] = useTransition();
 
@@ -119,8 +105,7 @@ export function ContactForm(props: ContactFormProps) {
     id: `contact-${field}`,
     name: field,
     value: values[field],
-    onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setField(field, event.target.value),
+    onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setField(field, event.target.value),
     "aria-invalid": errors[field] ? true : undefined,
     "aria-describedby": errors[field] ? `contact-${field}-error` : undefined,
   });
@@ -227,7 +212,7 @@ export function ContactForm(props: ContactFormProps) {
               onChange={(value) => setField("frequency", value)}
               invalid={Boolean(errors.frequency)}
             />
-            <p id="contact-frequency-hint" className="text-[13px] leading-[1.45] text-muted-foreground text-pretty">
+            <p id="contact-frequency-hint" className="text-[13px] leading-[1.45] text-pretty text-muted-foreground">
               Если дольше не общаться, контакт появится в блоке «Пора связаться»
             </p>
           </Field>
@@ -354,7 +339,7 @@ function Field({
         </Label>
         {action}
       </div>
-      {hint && <p className="-mt-1 mb-1 text-sm text-muted-foreground text-pretty">{hint}</p>}
+      {hint && <p className="-mt-1 mb-1 text-sm text-pretty text-muted-foreground">{hint}</p>}
       {children}
       {error && (
         <p id={`contact-${field}-error`} className="text-sm text-destructive">
@@ -388,7 +373,7 @@ function FrequencySelect({
         aria-invalid={invalid || undefined}
         aria-describedby={invalid ? "contact-frequency-hint contact-frequency-error" : "contact-frequency-hint"}
         className={cn(
-          "w-full rounded-lg bg-background pr-3 pl-3.5 text-base data-[size=default]:h-11 focus-visible:ring-ring/20 md:text-sm dark:bg-background dark:hover:bg-background",
+          "w-full rounded-lg bg-background pr-3 pl-3.5 text-base focus-visible:ring-ring/20 data-[size=default]:h-11 md:text-sm dark:bg-background dark:hover:bg-background",
           !value && "text-muted-foreground",
         )}
       >
@@ -412,8 +397,7 @@ function FrequencySelect({
   );
 }
 
-const itemClassName =
-  "h-11 rounded-md pr-9 pl-3 text-base focus:bg-secondary sm:h-9 sm:text-sm [&_svg]:text-primary";
+const itemClassName = "h-11 rounded-md pr-9 pl-3 text-base focus:bg-secondary sm:h-9 sm:text-sm [&_svg]:text-primary";
 
 function LabelLink({ href, icon, children }: { href: string; icon: ReactNode; children: ReactNode }) {
   return (

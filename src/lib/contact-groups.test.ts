@@ -37,11 +37,12 @@ describe("pickGroupByName", () => {
 
 describe("areGroupSelectionsEqual", () => {
   test("Несохранённый выбор групп", () => {
-    expect(areGroupSelectionsEqual({ groupIds: [1, 2], newGroups: [] }, { groupIds: [1], newGroups: [] })).toBe(
-      false,
-    );
+    expect(areGroupSelectionsEqual({ groupIds: [1, 2], newGroups: [] }, { groupIds: [1], newGroups: [] })).toBe(false);
     expect(
-      areGroupSelectionsEqual({ groupIds: [2, 1], newGroups: ["Аналитики"] }, { groupIds: [1, 2], newGroups: ["аналитики"] }),
+      areGroupSelectionsEqual(
+        { groupIds: [2, 1], newGroups: ["Аналитики"] },
+        { groupIds: [1, 2], newGroups: ["аналитики"] },
+      ),
     ).toBe(true);
   });
 });

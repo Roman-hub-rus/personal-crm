@@ -73,7 +73,7 @@ export default async function ContactsPage({ searchParams }: PageProps<"/">) {
 
 function GroupFilterRow({ items }: { items: GroupFilterItem[] }) {
   return (
-    <div className="-mx-5 mt-3 flex gap-2 overflow-x-auto px-5 pb-1 whitespace-nowrap [scrollbar-width:none]">
+    <div className="-mx-5 mt-3 flex [scrollbar-width:none] gap-2 overflow-x-auto px-5 pb-1 whitespace-nowrap">
       {items.map((item) => (
         <Link
           key={item.id ?? "all"}
@@ -98,7 +98,7 @@ function EmptyState() {
     <div className="flex flex-col items-center gap-3 py-20 text-center">
       <UsersRoundIcon aria-hidden className="size-10 text-faint" />
       <p className="font-display text-lg font-semibold text-balance">Пока нет ни одного контакта</p>
-      <p className="max-w-sm text-muted-foreground text-pretty">
+      <p className="max-w-sm text-pretty text-muted-foreground">
         Добавьте первого человека — кто это, откуда знакомы и о чём договорились.
       </p>
       <AddContactLink className="mt-3">Добавить первый контакт</AddContactLink>
@@ -114,7 +114,7 @@ function NothingFound({ query, groupName }: { query: string; groupName: string |
         <p className="font-display text-lg font-semibold text-balance break-words">
           В группе «{groupName}» пока никого нет
         </p>
-        <p className="max-w-sm text-muted-foreground text-pretty">
+        <p className="max-w-sm text-pretty text-muted-foreground">
           Добавить человека в группу можно в его карточке, в поле «Группы»
         </p>
       </div>

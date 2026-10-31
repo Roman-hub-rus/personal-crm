@@ -46,13 +46,11 @@ describe("renameGroup", () => {
       .insert(contacts)
       .values([{ name: "Контакт 1" }, { name: "Контакт 2" }, { name: "Контакт 3" }])
       .returning({ id: contacts.id });
-    await db
-      .insert(contactGroups)
-      .values([
-        { contactId: p1.id, groupId: tennis.id },
-        { contactId: p2.id, groupId: tennis.id },
-        { contactId: p3.id, groupId: tennis.id },
-      ]);
+    await db.insert(contactGroups).values([
+      { contactId: p1.id, groupId: tennis.id },
+      { contactId: p2.id, groupId: tennis.id },
+      { contactId: p3.id, groupId: tennis.id },
+    ]);
 
     const result = await renameGroup(tennis.id, "Большой теннис");
 
@@ -88,13 +86,11 @@ describe("deleteGroup", () => {
       .insert(contacts)
       .values([{ name: "Контакт 1" }, { name: "Контакт 2" }, { name: "Контакт 3" }])
       .returning({ id: contacts.id });
-    await db
-      .insert(contactGroups)
-      .values([
-        { contactId: p1.id, groupId: tennis.id },
-        { contactId: p2.id, groupId: tennis.id },
-        { contactId: p3.id, groupId: tennis.id },
-      ]);
+    await db.insert(contactGroups).values([
+      { contactId: p1.id, groupId: tennis.id },
+      { contactId: p2.id, groupId: tennis.id },
+      { contactId: p3.id, groupId: tennis.id },
+    ]);
 
     const result = await deleteGroup(tennis.id);
 
