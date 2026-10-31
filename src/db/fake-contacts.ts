@@ -565,7 +565,7 @@ const TRANSLIT: Record<string, string> = {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // mulberry32: small, fast, deterministic PRNG.
-function createRandom(seed: number) {
+export function createRandom(seed: number) {
   let state = seed >>> 0;
   const next = () => {
     state = (state + 0x6d2b79f5) >>> 0;
@@ -582,7 +582,7 @@ function createRandom(seed: number) {
   };
 }
 
-type Random = ReturnType<typeof createRandom>;
+export type Random = ReturnType<typeof createRandom>;
 
 function femaleLastName(male: string): string {
   if (male.endsWith("ский") || male.endsWith("цкий")) return `${male.slice(0, -2)}ая`;

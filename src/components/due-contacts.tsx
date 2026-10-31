@@ -4,12 +4,13 @@ import { ContactAvatar } from "@/components/contact-avatar";
 import { MarkContactedButton } from "@/components/mark-contacted-button";
 import { Badge } from "@/components/ui/badge";
 import { FREQUENCY_INLINE_LABELS } from "@/lib/contact-frequency";
+import { contactHref } from "@/lib/contact-groups";
 import type { DueContact } from "@/lib/contacts";
 import { formatElapsed } from "@/lib/format";
 
 // "Пора связаться" above the contact list. On a phone the "Связались" button sits under the name,
 // on a wider screen to the right of the row.
-export function DueContacts({ items }: { items: DueContact[] }) {
+export function DueContacts({ items, groupId }: { items: DueContact[]; groupId: number | null }) {
   const now = new Date();
 
   return (
@@ -31,7 +32,7 @@ export function DueContacts({ items }: { items: DueContact[] }) {
             className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:gap-2 sm:p-0 sm:pr-2"
           >
             <Link
-              href={`/contacts/${item.id}`}
+              href={contactHref(item.id, { groupId })}
               prefetch={false}
               className="flex items-center gap-3 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-w-0 sm:flex-1 sm:px-3 sm:py-2.5 sm:hover:bg-secondary"
             >

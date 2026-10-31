@@ -4,11 +4,12 @@ import Link from "next/link";
 
 import { ContactForm } from "@/components/contact-form";
 import { EMPTY_CONTACT_FORM } from "@/lib/contact-input";
+import { listGroups } from "@/lib/groups";
 
 export const metadata: Metadata = { title: "Новый контакт" };
 
 export default async function NewContactPage({ searchParams }: PageProps<"/contacts/new">) {
-  const { name } = await searchParams;
+  const [{ name }, allGroups] = await Promise.all([searchParams, listGroups()]);
   const initialName = (Array.isArray(name) ? name[0] : name)?.trim().slice(0, 200) ?? "";
 
   return (
@@ -21,7 +22,12 @@ export default async function NewContactPage({ searchParams }: PageProps<"/conta
         Все контакты
       </Link>
       <h1 className="mt-5 mb-7 font-display text-title font-semibold lg:text-title-lg">Новый контакт</h1>
-      <ContactForm mode="create" cancelHref="/" initialValues={{ ...EMPTY_CONTACT_FORM, name: initialName }} />
+      <ContactForm
+        mode="create"
+        cancelHref="/"
+        initialValues={{ ...EMPTY_CONTACT_FORM, name: initialName }}
+        allGroups={allGroups}
+      />
     </main>
   );
 }

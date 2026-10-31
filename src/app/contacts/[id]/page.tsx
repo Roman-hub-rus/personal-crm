@@ -7,9 +7,11 @@ import { ContactAvatar } from "@/components/contact-avatar";
 import { ContactForm } from "@/components/contact-form";
 import { DeleteContactButton } from "@/components/delete-contact-button";
 import { MarkContactedButton } from "@/components/mark-contacted-button";
+import { backLink, parseGroupId } from "@/lib/contact-groups";
 import { toFormValues } from "@/lib/contact-input";
 import { getContact, parseContactId } from "@/lib/contacts";
 import { formatDate, formatDateTime } from "@/lib/format";
+import { listGroups } from "@/lib/groups";
 
 async function loadContact(params: PageProps<"/contacts/[id]">["params"]) {
   const { id } = await params;
@@ -23,22 +25,24 @@ export async function generateMetadata({ params }: PageProps<"/contacts/[id]">):
 }
 
 export default async function ContactPage({ params, searchParams }: PageProps<"/contacts/[id]">) {
-  const contact = await loadContact(params);
+  const [contact, allGroups] = await Promise.all([loadContact(params), listGroups()]);
   if (!contact) notFound();
 
-  // Keep the search query so "back" returns to the same search results.
-  const { q } = await searchParams;
+  // Keep the search query and the selected group so "back" returns to the same view.
+  const { q, group } = await searchParams;
   const query = (Array.isArray(q) ? q[0] : q)?.trim() ?? "";
-  const backHref = query ? `/?${new URLSearchParams({ q: query })}` : "/";
+  const groupId = parseGroupId(Array.isArray(group) ? group[0] : group, allGroups);
+  const groupName = groupId === null ? null : (allGroups.find((item) => item.id === groupId)?.name ?? null);
+  const back = backLink({ query, groupId, groupName });
 
   return (
     <main className="mx-auto w-full max-w-3xl px-5 pt-4 lg:pt-6">
       <Link
-        href={backHref}
+        href={back.href}
         className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
       >
         <ArrowLeftIcon aria-hidden className="size-4" />
-        {query ? "К результатам поиска" : "Все контакты"}
+        {back.text}
       </Link>
 
       {/* "Связались" goes under the name on a phone and to the right of it on a wider screen. */}
@@ -67,7 +71,8 @@ export default async function ContactPage({ params, searchParams }: PageProps<"/
         contactId={contact.id}
         initialValues={toFormValues(contact)}
         updatedAtLabel={formatDateTime(contact.updatedAt)}
-        footer={<DeleteContactButton contactId={contact.id} name={contact.name} afterDeleteHref={backHref} />}
+        allGroups={allGroups}
+        footer={<DeleteContactButton contactId={contact.id} name={contact.name} afterDeleteHref={back.href} />}
       />
     </main>
   );

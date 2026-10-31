@@ -1,4 +1,4 @@
-import { getDatabaseUrl, loadEnv } from "../src/db/env";
+import { buildTestDatabaseUrl, splitTestDatabaseUrl as splitTestDatabaseUrlWithSuffix } from "../src/db/test-database";
 
 // E2E tests run against a separate database next to the main one (e.g. "crm" -> "crm_e2e"),
 // so they never touch real contacts.
@@ -8,22 +8,9 @@ export const TEST_DATABASE_SUFFIX = "_e2e";
 export const E2E_SEEDED_CONTACTS = 1000;
 
 export function getTestDatabaseUrl(): string {
-  loadEnv();
-  const url = new URL(getDatabaseUrl());
-  const name = decodeURIComponent(url.pathname.slice(1));
-  if (!name.endsWith(TEST_DATABASE_SUFFIX)) {
-    url.pathname = `/${encodeURIComponent(name + TEST_DATABASE_SUFFIX)}`;
-  }
-  return url.toString();
+  return buildTestDatabaseUrl(TEST_DATABASE_SUFFIX);
 }
 
-// Name of the test database and a URL of the server's maintenance database used to create/drop it.
 export function splitTestDatabaseUrl(testUrl: string) {
-  const url = new URL(testUrl);
-  const name = decodeURIComponent(url.pathname.slice(1));
-  if (!name.endsWith(TEST_DATABASE_SUFFIX)) {
-    throw new Error(`Refusing to use "${name}" as a test database: its name must end with "${TEST_DATABASE_SUFFIX}".`);
-  }
-  url.pathname = "/postgres";
-  return { name, maintenanceUrl: url.toString() };
+  return splitTestDatabaseUrlWithSuffix(testUrl, TEST_DATABASE_SUFFIX);
 }
