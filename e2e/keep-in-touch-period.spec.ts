@@ -32,8 +32,7 @@ test.afterAll(async () => {
 const moment = (iso: string | undefined) => (iso ? sql`${iso}::timestamptz` : sql`null::timestamptz`);
 
 // ISO 8601 in UTC, or null.
-const isoUtc = (expression: SQL) =>
-  sql`to_char(${expression} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`;
+const isoUtc = (expression: SQL) => sql`to_char(${expression} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`;
 
 async function evaluate(moments: Moments) {
   const { lastContactAt, periodStart, dueAt } = keepInTouchSql({
@@ -85,8 +84,17 @@ test("the period starts at the latest of the note, 'Связались' and choo
 
   // A note after "Связались" wins.
   expect(
-    await evaluate({ frequency: "week", lastNoteAt: "2026-02-03T08:00:00Z", lastContactedAt: contacted, frequencySetAt: frequencySet }),
-  ).toEqual({ lastContactAt: "2026-02-03T08:00:00Z", periodStart: "2026-02-03T08:00:00Z", dueAt: "2026-02-10T08:00:00Z" });
+    await evaluate({
+      frequency: "week",
+      lastNoteAt: "2026-02-03T08:00:00Z",
+      lastContactedAt: contacted,
+      frequencySetAt: frequencySet,
+    }),
+  ).toEqual({
+    lastContactAt: "2026-02-03T08:00:00Z",
+    periodStart: "2026-02-03T08:00:00Z",
+    dueAt: "2026-02-10T08:00:00Z",
+  });
 
   // No contact yet: counted from choosing the frequency.
   expect(await evaluate({ frequency: "week", frequencySetAt: frequencySet })).toEqual({

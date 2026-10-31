@@ -1,0 +1,9 @@
+# Generated files
+pnpm-lock.yaml
+drizzle/
+
+# Docs and agent notes are written by hand, not formatted
+*.md
+openspec/
+specs/
+.claude/

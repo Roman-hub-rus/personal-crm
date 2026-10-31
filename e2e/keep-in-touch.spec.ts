@@ -108,7 +108,12 @@ test.describe("the block on the home page", () => {
 
   test("the row tells how long ago the last note was", async ({ page }) => {
     const name = uniqueName("Квартал Заметкин");
-    await insertContact(name, { frequency: "quarter", notes: "Старая заметка", lastNoteAt: "4 months", frequencySetAt: "5 months" });
+    await insertContact(name, {
+      frequency: "quarter",
+      notes: "Старая заметка",
+      lastNoteAt: "4 months",
+      frequencySetAt: "5 months",
+    });
     await openHome(page);
     await expect(dueRow(page, name)).toContainText(name);
     await expect(dueRow(page, name)).toContainText("Последнее общение 4 месяца назад · раз в квартал");
@@ -128,7 +133,12 @@ test.describe("the block on the home page", () => {
 
   test("month -> week after a contact 10 days ago: shown right away", async ({ page }) => {
     const name = uniqueName("Смена Частотина");
-    await insertContact(name, { frequency: "month", notes: "Созвонились", lastNoteAt: "10 days", frequencySetAt: "20 days" });
+    await insertContact(name, {
+      frequency: "month",
+      notes: "Созвонились",
+      lastNoteAt: "10 days",
+      frequencySetAt: "20 days",
+    });
     await openHome(page);
     await expect(dueRow(page, name)).toHaveCount(0);
 
@@ -155,7 +165,12 @@ test.describe("the block on the home page", () => {
 
   test("appending a note takes the contact out of the block, changing only the phone does not", async ({ page }) => {
     const name = uniqueName("Заметка Допискина");
-    await insertContact(name, { frequency: "week", notes: "Первая заметка", lastNoteAt: "8 days", frequencySetAt: "30 days" });
+    await insertContact(name, {
+      frequency: "week",
+      notes: "Первая заметка",
+      lastNoteAt: "8 days",
+      frequencySetAt: "30 days",
+    });
     await openHome(page);
     await expect(dueRow(page, name)).toHaveCount(1);
 
@@ -228,12 +243,19 @@ test.describe("«Связались»", () => {
   test("from the block: the row goes away, «Отменить» brings it back in place", async ({ page }) => {
     const names = [uniqueName("Первый Отменов"), uniqueName("Второй Отменов"), uniqueName("Третий Отменов")];
     await insertContact(names[0], { frequency: "week", frequencySetAt: "40 days" });
-    await insertContact(names[1], { frequency: "week", notes: "Заметка", lastNoteAt: "30 days", frequencySetAt: "60 days" });
+    await insertContact(names[1], {
+      frequency: "week",
+      notes: "Заметка",
+      lastNoteAt: "30 days",
+      frequencySetAt: "60 days",
+    });
     await insertContact(names[2], { frequency: "week", frequencySetAt: "20 days" });
     await openHome(page);
     const before = await dueRows(page).allTextContents();
 
-    await dueRow(page, names[1]).getByRole("button", { name: `Связались — ${names[1]}` }).click();
+    await dueRow(page, names[1])
+      .getByRole("button", { name: `Связались — ${names[1]}` })
+      .click();
     await expect(page.getByText(`Отмечено: ${names[1]}`)).toBeVisible();
     await expect(dueRow(page, names[1])).toHaveCount(0);
     await expect(page).toHaveURL(/\/$/);
@@ -248,7 +270,9 @@ test.describe("«Связались»", () => {
     const name = uniqueName("Без Отмены");
     await insertContact(name, { frequency: "month", frequencySetAt: "2 months" });
     await openHome(page);
-    await dueRow(page, name).getByRole("button", { name: `Связались — ${name}` }).click();
+    await dueRow(page, name)
+      .getByRole("button", { name: `Связались — ${name}` })
+      .click();
     const message = page.getByText(`Отмечено: ${name}`);
     await expect(message).toBeVisible();
     await expect(message).toBeHidden({ timeout: 10_000 });
@@ -260,7 +284,12 @@ test.describe("«Связались»", () => {
 
   test("from the card: notes and unsaved edits stay, the contact leaves the block", async ({ page }) => {
     const name = uniqueName("Карточка Связалова");
-    await insertContact(name, { frequency: "week", notes: "Обсудили поездку", lastNoteAt: "12 days", frequencySetAt: "30 days" });
+    await insertContact(name, {
+      frequency: "week",
+      notes: "Обсудили поездку",
+      lastNoteAt: "12 days",
+      frequencySetAt: "30 days",
+    });
     const before = await getStoredContact(name);
 
     await openCard(page, name);
@@ -290,8 +319,20 @@ test.describe("«Связались»", () => {
   test("«Связались» later than the note restarts the period", async ({ page }) => {
     const recent = uniqueName("Недавно Связались");
     const earlier = uniqueName("Давно Связались");
-    await insertContact(recent, { frequency: "week", notes: "Заметка", lastNoteAt: "20 days", lastContactedAt: "2 days", frequencySetAt: "60 days" });
-    await insertContact(earlier, { frequency: "week", notes: "Заметка", lastNoteAt: "3 months", lastContactedAt: "10 days", frequencySetAt: "6 months" });
+    await insertContact(recent, {
+      frequency: "week",
+      notes: "Заметка",
+      lastNoteAt: "20 days",
+      lastContactedAt: "2 days",
+      frequencySetAt: "60 days",
+    });
+    await insertContact(earlier, {
+      frequency: "week",
+      notes: "Заметка",
+      lastNoteAt: "3 months",
+      lastContactedAt: "10 days",
+      frequencySetAt: "6 months",
+    });
     await openHome(page);
     await expect(dueRow(page, recent)).toHaveCount(0);
     await expect(dueRow(page, earlier)).toContainText("Последнее общение 10 дней назад · раз в неделю");
@@ -306,7 +347,9 @@ test.describe("«Связались»", () => {
     await expect(dueRows(page)).toHaveCount(1);
     await expect(block(page).getByText("1", { exact: true })).toBeVisible();
 
-    await dueRow(page, name).getByRole("button", { name: `Связались — ${name}` }).click();
+    await dueRow(page, name)
+      .getByRole("button", { name: `Связались — ${name}` })
+      .click();
     await expect(page.getByText(`Отмечено: ${name}`)).toBeVisible();
     await expect(block(page)).toHaveCount(0);
   });
