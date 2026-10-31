@@ -13,7 +13,9 @@ import {
   frequencySelect,
   getStoredContact,
   insertContact,
+  insertGroup,
   setMomentsAgo,
+  shiftMomentsBack,
   uniqueName,
 } from "./keep-in-touch-helpers";
 
@@ -104,6 +106,60 @@ test.describe("the block on the home page", () => {
     // The overdue contact stays in the list as well.
     await expect(page.getByTestId("contact-row").filter({ hasText: name })).toHaveCount(1);
     await expect(block(page).getByText(String(await dueRows(page).count()), { exact: true })).toBeVisible();
+  });
+
+  test("a note written when creating the contact counts as the last contact", async ({ page }) => {
+    const withNote = uniqueName("Создан Заметкин");
+    const withoutNote = uniqueName("Создан Беззаметкин");
+    await addContact(page, { name: withNote, frequency: "Раз в неделю", notes: "Познакомились на конференции" });
+    await addContact(page, { name: withoutNote, frequency: "Раз в неделю" });
+
+    // As if 8 days have passed since both were created.
+    await shiftMomentsBack(withNote, "8 days");
+    await shiftMomentsBack(withoutNote, "8 days");
+    await openHome(page);
+    await expect(dueRow(page, withNote)).toContainText("Последнее общение 8 дней назад · раз в неделю");
+    await expect(dueRow(page, withoutNote)).toContainText("Не общались уже 8 дней · раз в неделю");
+  });
+
+  test("a group chosen on the home page: only its overdue contacts, hidden while searching", async ({ page }) => {
+    const first = uniqueName("Теннис Первый");
+    const second = uniqueName("Теннис Второй");
+    const outside = uniqueName("Вне Группы");
+    const onTime = uniqueName("Семья Вовремякина");
+    for (const name of [first, second, outside]) {
+      await insertContact(name, { frequency: "week", frequencySetAt: "10 days" });
+    }
+    await insertContact(onTime, { frequency: "week", frequencySetAt: "2 days" });
+    const tennis = uniqueName("Теннис");
+    const family = uniqueName("Семья");
+    await insertGroup(tennis, [first, second]);
+    await insertGroup(family, [onTime]);
+    const groupLink = (name: string) => page.getByRole("link", { name, exact: true });
+
+    await openHome(page);
+    await expect(dueRow(page, outside)).toHaveCount(1);
+
+    await groupLink(tennis).click();
+    await expect(groupLink(tennis)).toHaveAttribute("aria-current", "true");
+    await expect(dueRows(page)).toHaveCount(2);
+    expect((await dueNames(page)).sort()).toEqual([first, second].sort());
+    await expect(block(page).getByText("2", { exact: true })).toBeVisible();
+
+    // Searching inside the group hides the block; clearing the search brings back the group's overdue.
+    await page.getByRole("searchbox", { name: "Найти контакт по имени" }).fill(first);
+    await expect(page.getByTestId("contact-row")).toHaveCount(1);
+    await expect(block(page)).toHaveCount(0);
+    await page.getByRole("button", { name: "Очистить поиск" }).click();
+    await expect(groupLink(tennis)).toHaveAttribute("aria-current", "true");
+    await expect(dueRows(page)).toHaveCount(2);
+    await expect(dueRow(page, outside)).toHaveCount(0);
+
+    // Nobody in "Семья" is overdue.
+    await groupLink(family).click();
+    await expect(groupLink(family)).toHaveAttribute("aria-current", "true");
+    await expect(page.getByTestId("contact-row")).toHaveCount(1);
+    await expect(block(page)).toHaveCount(0);
   });
 
   test("the row tells how long ago the last note was", async ({ page }) => {
@@ -252,6 +308,7 @@ test.describe("«Связались»", () => {
     await insertContact(names[2], { frequency: "week", frequencySetAt: "20 days" });
     await openHome(page);
     const before = await dueRows(page).allTextContents();
+    const storedBefore = await getStoredContact(names[1]);
 
     await dueRow(page, names[1])
       .getByRole("button", { name: `Связались — ${names[1]}` })
@@ -259,6 +316,12 @@ test.describe("«Связались»", () => {
     await expect(page.getByText(`Отмечено: ${names[1]}`)).toBeVisible();
     await expect(dueRow(page, names[1])).toHaveCount(0);
     await expect(page).toHaveURL(/\/$/);
+
+    // The notes and the moment of the last note stay as they were.
+    const storedAfter = await getStoredContact(names[1]);
+    expect(storedAfter.notes).toBe(storedBefore.notes);
+    expect(storedAfter.lastNoteAt).toEqual(storedBefore.lastNoteAt);
+    expect(storedAfter.lastContactedAt).not.toBeNull();
 
     await page.getByRole("button", { name: "Отменить" }).click();
     await expect(dueRows(page)).toHaveText(before);

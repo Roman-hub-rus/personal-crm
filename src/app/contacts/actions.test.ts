@@ -76,6 +76,30 @@ describe("createContact", () => {
     const links = await db.select().from(contactGroups);
     expect(links).toHaveLength(0);
   });
+
+  test("Контакт создан с заметкой", async () => {
+    const result = await createContact(baseInput({ notes: "Познакомились на конференции" }));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    const [stored] = await db
+      .select({ lastNoteAt: contacts.lastNoteAt, createdAt: contacts.createdAt })
+      .from(contacts)
+      .where(eq(contacts.id, result.id));
+    expect(stored.lastNoteAt).toEqual(stored.createdAt);
+  });
+
+  test("Контакт создан без заметок", async () => {
+    const result = await createContact(baseInput({ notes: "" }));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    const [stored] = await db
+      .select({ lastNoteAt: contacts.lastNoteAt })
+      .from(contacts)
+      .where(eq(contacts.id, result.id));
+    expect(stored.lastNoteAt).toBeNull();
+  });
 });
 
 describe("updateContact", () => {

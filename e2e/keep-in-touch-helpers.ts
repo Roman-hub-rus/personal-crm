@@ -33,9 +33,20 @@ export function uniqueName(firstName: string): string {
   return `${firstName} ${RUN_TAG}-${String(counter).padStart(3, "0")}`;
 }
 
-// Removes every contact added by this run: main-scenario.spec.ts expects the seeded 1000 contacts.
+// Removes every contact and group added by this run: main-scenario.spec.ts expects the seeded 1000 contacts.
 export async function deleteTestContacts() {
   await db()`delete from contacts where name like ${`%${RUN_TAG}%`}`;
+  await db()`delete from groups where name like ${`%${RUN_TAG}%`}`;
+}
+
+// Adds a group straight to the database with the contacts of these names in it.
+export async function insertGroup(name: string, memberNames: string[]) {
+  const [group] = await db()<{ id: number }[]>`insert into groups (name) values (${name}) returning id`;
+  const result = await db()`
+    insert into contact_groups (contact_id, group_id)
+    select id, ${group.id} from contacts where name = any(${memberNames})
+  `;
+  expect(result.count, `members of "${name}"`).toBe(memberNames.length);
 }
 
 // Adds a contact straight to the database, for tests where creating it is not the point.
@@ -71,6 +82,19 @@ export async function setMomentsAgo(name: string, moments: Partial<Record<Moment
     `;
     expect(result.count, `contact "${name}"`).toBe(1);
   }
+}
+
+// Moves every stored moment of the contact back by the interval, as if that much time has passed.
+// Unlike setMomentsAgo, a moment that is not set stays not set.
+export async function shiftMomentsBack(name: string, interval: string) {
+  const result = await db()`
+    update contacts
+    set last_note_at = last_note_at - ${interval}::interval,
+        last_contacted_at = last_contacted_at - ${interval}::interval,
+        frequency_set_at = frequency_set_at - ${interval}::interval
+    where name = ${name}
+  `;
+  expect(result.count, `contact "${name}"`).toBe(1);
 }
 
 export async function getStoredContact(name: string) {
