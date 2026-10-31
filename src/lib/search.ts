@@ -9,10 +9,7 @@ export function normalizeForSearch(text: string): string {
 
 // Splits a query into words; every word must be found in the name.
 export function searchWords(query: string): string[] {
-  return normalizeForSearch(query.slice(0, MAX_SEARCH_LENGTH))
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 10);
+  return normalizeForSearch(query.slice(0, MAX_SEARCH_LENGTH)).split(/\s+/).filter(Boolean).slice(0, 10);
 }
 
 export type TextPart = { text: string; match: boolean };

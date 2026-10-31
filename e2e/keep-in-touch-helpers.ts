@@ -93,7 +93,10 @@ export async function clearFrequencyExcept(names: string[]) {
 }
 
 // Adds a contact through the form; returns its id.
-export async function addContact(page: Page, { name, frequency, notes }: { name: string; frequency?: string; notes?: string }) {
+export async function addContact(
+  page: Page,
+  { name, frequency, notes }: { name: string; frequency?: string; notes?: string },
+) {
   await page.goto("/contacts/new");
   await page.getByLabel("Имя").fill(name);
   if (notes) await page.getByLabel("Заметки").fill(notes);

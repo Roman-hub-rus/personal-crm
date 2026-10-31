@@ -67,7 +67,7 @@ function EmptyState() {
     <div className="flex flex-col items-center gap-3 py-20 text-center">
       <UsersRoundIcon aria-hidden className="size-10 text-faint" />
       <p className="font-display text-lg font-semibold text-balance">Пока нет ни одного контакта</p>
-      <p className="max-w-sm text-muted-foreground text-pretty">
+      <p className="max-w-sm text-pretty text-muted-foreground">
         Добавьте первого человека — кто это, откуда знакомы и о чём договорились.
       </p>
       <AddContactLink className="mt-3">Добавить первый контакт</AddContactLink>

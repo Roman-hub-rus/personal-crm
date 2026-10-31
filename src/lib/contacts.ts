@@ -24,9 +24,7 @@ function escapeLike(text: string): string {
 // Contacts sorted alphabetically (Russian collation); `search` filters by name.
 export async function listContacts(search = ""): Promise<ContactListItem[]> {
   const normalizedName = sql`replace(lower(${contacts.name}), 'ё', 'е')`;
-  const conditions = searchWords(search).map(
-    (word) => sql`${normalizedName} like ${`%${escapeLike(word)}%`}`,
-  );
+  const conditions = searchWords(search).map((word) => sql`${normalizedName} like ${`%${escapeLike(word)}%`}`);
 
   return db
     .select({

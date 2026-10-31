@@ -21,11 +21,7 @@ export default async function NewContactPage({ searchParams }: PageProps<"/conta
         Все контакты
       </Link>
       <h1 className="mt-5 mb-7 font-display text-title font-semibold lg:text-title-lg">Новый контакт</h1>
-      <ContactForm
-        mode="create"
-        cancelHref="/"
-        initialValues={{ ...EMPTY_CONTACT_FORM, name: initialName }}
-      />
+      <ContactForm mode="create" cancelHref="/" initialValues={{ ...EMPTY_CONTACT_FORM, name: initialName }} />
     </main>
   );
 }
