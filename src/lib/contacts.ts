@@ -41,11 +41,19 @@ function inGroup(groupId: number) {
   )`;
 }
 
-// Contacts sorted alphabetically (Russian collation); `search` filters by name,
+// Every function here takes the id of the signed-in user first and works only with that user's contacts:
+// a contact of another user is as good as absent.
+
+// Contacts of the user sorted alphabetically (Russian collation); `search` filters by name,
 // `groupId` (when given) keeps only the people in that group.
-export async function listContacts(search = "", groupId: number | null = null): Promise<ContactListItem[]> {
+export async function listContacts(
+  userId: string,
+  search = "",
+  groupId: number | null = null,
+): Promise<ContactListItem[]> {
   const normalizedName = sql`replace(lower(${contacts.name}), 'ё', 'е')`;
-  const conditions = searchWords(search).map((word) => sql`${normalizedName} like ${`%${escapeLike(word)}%`}`);
+  const conditions = [eq(contacts.ownerId, userId)];
+  conditions.push(...searchWords(search).map((word) => sql`${normalizedName} like ${`%${escapeLike(word)}%`}`));
   if (groupId !== null) conditions.push(inGroup(groupId));
 
   return db
@@ -58,7 +66,7 @@ export async function listContacts(search = "", groupId: number | null = null): 
       groups: contactGroupNames,
     })
     .from(contacts)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .where(and(...conditions))
     .orderBy(sql`${contacts.name} collate "ru-RU-x-icu"`, asc(contacts.id));
 }
 
@@ -73,9 +81,9 @@ export type DueContact = {
 
 // "Пора связаться": contacts whose period has run out, the most overdue first.
 // `groupId` (when given) keeps only the overdue people in that group.
-export async function listDueContacts(groupId: number | null = null): Promise<DueContact[]> {
+export async function listDueContacts(userId: string, groupId: number | null = null): Promise<DueContact[]> {
   const { lastContactAt, dueAt } = keepInTouchSql();
-  const conditions = [isNotNull(contacts.contactFrequency), sql`${dueAt} < now()`];
+  const conditions = [eq(contacts.ownerId, userId), isNotNull(contacts.contactFrequency), sql`${dueAt} < now()`];
   if (groupId !== null) conditions.push(inGroup(groupId));
 
   return db
@@ -91,21 +99,25 @@ export async function listDueContacts(groupId: number | null = null): Promise<Du
     .orderBy(dueAt, sql`${contacts.name} collate "ru-RU-x-icu"`, asc(contacts.id));
 }
 
-export async function countContacts(): Promise<number> {
-  const [{ value }] = await db.select({ value: count() }).from(contacts);
+export async function countContacts(userId: string): Promise<number> {
+  const [{ value }] = await db.select({ value: count() }).from(contacts).where(eq(contacts.ownerId, userId));
   return value;
 }
 
+// Null for a contact that does not exist and for a contact of another user alike.
 // Cached per request: the page and its metadata share one query.
-export const getContact = cache(async (id: number) => {
-  const [contact] = await db.select().from(contacts).where(eq(contacts.id, id));
+export const getContact = cache(async (userId: string, id: number) => {
+  const [contact] = await db
+    .select()
+    .from(contacts)
+    .where(and(eq(contacts.id, id), eq(contacts.ownerId, userId)));
   if (!contact) return null;
 
   const contactGroupRows = await db
     .select({ id: groups.id, name: groups.name })
     .from(contactGroups)
     .innerJoin(groups, eq(groups.id, contactGroups.groupId))
-    .where(eq(contactGroups.contactId, id))
+    .where(and(eq(contactGroups.contactId, id), eq(groups.ownerId, userId)))
     .orderBy(sql`${groups.name} collate "ru-RU-x-icu"`);
 
   return { ...contact, groups: contactGroupRows };

@@ -1,24 +1,26 @@
-// Applies pending migrations from ./drizzle on the server, where drizzle-kit is not installed.
-// The Docker image bundles this file into db/migrate.mjs; locally use `pnpm db:migrate` instead.
+// Applies pending migrations from ./drizzle: `pnpm db:migrate` locally, and on the server, where drizzle-kit
+// is not installed (the Docker image bundles this file into db/migrate.mjs).
+// OWNER_EMAIL must be set when the database already has contacts: they go to that user (see run-migrations.ts).
 
-import { drizzle } from "drizzle-orm/postgres-js";
-import { migrate } from "drizzle-orm/postgres-js/migrator";
-import postgres from "postgres";
-
-import { getDatabaseUrl, loadEnv } from "./env";
+import { getDatabaseUrl, getOwnerEmail, loadEnv } from "./env";
+import { runMigrations } from "./run-migrations";
 
 async function main() {
   loadEnv();
-  const client = postgres(getDatabaseUrl(), { max: 1, onnotice: () => {} });
-  try {
-    await migrate(drizzle(client), { migrationsFolder: "./drizzle" });
-    console.log("Migrations applied.");
-  } finally {
-    await client.end();
+  const given = await runMigrations(getDatabaseUrl(), { ownerEmail: getOwnerEmail() });
+  console.log("Migrations applied.");
+  if (given > 0) {
+    console.log(`Contacts and groups given to the owner: ${given}.`);
   }
 }
 
+// A failed query reports its SQL as the message; the reason (e.g. "OWNER_EMAIL is not set…") is in the cause.
+function reasonOf(error: unknown): string {
+  if (error instanceof Error && error.cause instanceof Error) return error.cause.message;
+  return error instanceof Error ? error.message : String(error);
+}
+
 main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
+  console.error(`Migration failed: ${reasonOf(error)}`);
   process.exit(1);
 });

@@ -12,20 +12,25 @@ import { toFormValues } from "@/lib/contact-input";
 import { getContact, parseContactId } from "@/lib/contacts";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { listGroups } from "@/lib/groups";
+import { getCurrentUser, requireUser } from "@/lib/session";
 
-async function loadContact(params: PageProps<"/contacts/[id]">["params"]) {
+// A contact of another user is not found, exactly like a contact that does not exist.
+async function loadContact(userId: string, params: PageProps<"/contacts/[id]">["params"]) {
   const { id } = await params;
   const contactId = parseContactId(id);
-  return contactId === null ? null : getContact(contactId);
+  return contactId === null ? null : getContact(userId, contactId);
 }
 
 export async function generateMetadata({ params }: PageProps<"/contacts/[id]">): Promise<Metadata> {
-  const contact = await loadContact(params);
+  // Not requireUser: the page itself sends a visitor without sign-in to the sign-in page.
+  const user = await getCurrentUser();
+  const contact = user ? await loadContact(user.id, params) : null;
   return { title: contact?.name ?? "Контакт не найден" };
 }
 
 export default async function ContactPage({ params, searchParams }: PageProps<"/contacts/[id]">) {
-  const [contact, allGroups] = await Promise.all([loadContact(params), listGroups()]);
+  const user = await requireUser();
+  const [contact, allGroups] = await Promise.all([loadContact(user.id, params), listGroups(user.id)]);
   if (!contact) notFound();
 
   // Keep the search query and the selected group so "back" returns to the same view.

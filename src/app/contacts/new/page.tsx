@@ -5,11 +5,13 @@ import Link from "next/link";
 import { ContactForm } from "@/components/contact-form";
 import { EMPTY_CONTACT_FORM } from "@/lib/contact-input";
 import { listGroups } from "@/lib/groups";
+import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Новый контакт" };
 
 export default async function NewContactPage({ searchParams }: PageProps<"/contacts/new">) {
-  const [{ name }, allGroups] = await Promise.all([searchParams, listGroups()]);
+  const user = await requireUser();
+  const [{ name }, allGroups] = await Promise.all([searchParams, listGroups(user.id)]);
   const initialName = (Array.isArray(name) ? name[0] : name)?.trim().slice(0, 200) ?? "";
 
   return (

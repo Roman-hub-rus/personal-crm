@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { GroupsManager } from "@/components/groups-manager";
 import { listGroupsWithCounts } from "@/lib/groups";
+import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Группы" };
 
@@ -9,7 +10,8 @@ export const metadata: Metadata = { title: "Группы" };
 export const dynamic = "force-dynamic";
 
 export default async function GroupsPage() {
-  const groups = await listGroupsWithCounts();
+  const user = await requireUser();
+  const groups = await listGroupsWithCounts(user.id);
 
   return (
     <main className="mx-auto w-full max-w-3xl px-5 pt-4 pb-16 lg:pt-6">

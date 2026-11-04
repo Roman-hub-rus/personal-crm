@@ -1,7 +1,8 @@
 // Fills an empty database with test contacts: `pnpm db:seed` (1000 by default) or `pnpm db:seed 250`.
+// The contacts go to the user with the email from OWNER_EMAIL.
 // Never touches existing data: if the contacts table is not empty, the script exits without changes.
 
-import { getDatabaseUrl, loadEnv } from "./env";
+import { getDatabaseUrl, getOwnerEmail, loadEnv } from "./env";
 import { seedContacts } from "./seed-contacts";
 
 async function main() {
@@ -11,7 +12,7 @@ async function main() {
     throw new Error(`Invalid amount: "${process.argv[2]}". Pass a positive integer.`);
   }
 
-  const { inserted, existing } = await seedContacts(getDatabaseUrl(), amount);
+  const { inserted, existing } = await seedContacts(getDatabaseUrl(), amount, getOwnerEmail());
   if (inserted === 0) {
     console.log(`Seed skipped: the contacts table already has ${existing} rows, nothing was changed.`);
   } else {

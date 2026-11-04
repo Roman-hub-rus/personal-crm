@@ -42,7 +42,7 @@ test("deleted a contact -> back to the search results, it is gone from the list 
   await expect(page.getByText(`Никого не нашли по запросу «${name}»`)).toBeVisible();
   await expect(total).toHaveText(totalBefore);
 
-  // The old link to the card leads nowhere.
+  // The old link to the card leads nowhere: the same "Контакт не найден" as for the contact of someone else.
   await page.goto(cardUrl);
-  await expect(page.getByRole("heading", { level: 1, name: "Такой страницы нет" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Контакт не найден" })).toBeVisible();
 });

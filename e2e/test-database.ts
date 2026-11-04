@@ -4,6 +4,12 @@ import { buildTestDatabaseUrl, splitTestDatabaseUrl as splitTestDatabaseUrlWithS
 // so they never touch real contacts.
 export const TEST_DATABASE_SUFFIX = "_e2e";
 
+// The user who owns the test contacts; the setup of the e2e run signs in as this user.
+export const E2E_OWNER_EMAIL = "owner@example.com";
+
+// The saved browser state of the signed-in owner (made by auth.setup.ts, not in git).
+export const E2E_AUTH_STATE = "e2e/.auth/owner.json";
+
 // The e2e database is filled with the same test contacts as `pnpm db:seed`.
 export const E2E_SEEDED_CONTACTS = 1000;
 

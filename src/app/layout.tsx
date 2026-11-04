@@ -3,6 +3,7 @@ import { Golos_Text, JetBrains_Mono, Unbounded } from "next/font/google";
 
 import { SiteHeader } from "@/components/site-header";
 import { Toaster } from "@/components/ui/sonner";
+import { getCurrentUser } from "@/lib/session";
 
 import "./globals.css";
 
@@ -19,14 +20,16 @@ export const metadata: Metadata = {
   description: "Люди, которых я знаю лично: кто это, откуда знакомы, как связаться и о чём договорились.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const user = await getCurrentUser();
+
   return (
     <html
       lang="ru"
       className={`${fontSans.variable} ${fontDisplay.variable} ${fontMono.variable} dark h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
-        <SiteHeader />
+        <SiteHeader email={user?.email ?? null} />
         <div className="flex flex-1 flex-col">{children}</div>
         <Toaster position="top-center" closeButton />
       </body>

@@ -26,3 +26,6 @@ next-env.d.ts
 *.pem
 npm-debug.log*
 .pnpm-debug.log*
+
+# browser state of the e2e user, made by the setup of the e2e run
+/e2e/.auth/
