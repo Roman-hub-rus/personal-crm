@@ -4,7 +4,11 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
 import { getDatabaseUrl } from "./env";
+import { installSafeQueryErrors } from "./safe-query-errors";
 import * as schema from "./schema";
+
+// Failed queries must not carry contacts' data into the server log.
+installSafeQueryErrors();
 
 // Reuse one connection pool across hot reloads in development.
 const globalForDb = globalThis as unknown as { pgClient?: postgres.Sql };
