@@ -12,6 +12,7 @@ import { countContacts, listContacts, listDueContacts } from "@/lib/contacts";
 import { formatContactsCount } from "@/lib/format";
 import { listGroups } from "@/lib/groups";
 import { MAX_SEARCH_LENGTH } from "@/lib/search";
+import { requireUser } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Контакты" };
@@ -21,18 +22,19 @@ function firstParam(value: string | string[] | undefined): string {
 }
 
 export default async function ContactsPage({ searchParams }: PageProps<"/">) {
+  const user = await requireUser();
   const params = await searchParams;
   const query = firstParam(params.q).trim().slice(0, MAX_SEARCH_LENGTH);
   const addedId = Number(firstParam(params.added)) || null;
-  const allGroups = await listGroups();
+  const allGroups = await listGroups(user.id);
   const groupId = parseGroupId(firstParam(params.group), allGroups);
   const selectedGroup = groupId === null ? null : (allGroups.find((group) => group.id === groupId) ?? null);
 
   // "Пора связаться" is hidden while searching, so it is not even queried then.
   const [items, total, dueContacts] = await Promise.all([
-    listContacts(query, groupId),
-    countContacts(),
-    query ? [] : listDueContacts(groupId),
+    listContacts(user.id, query, groupId),
+    countContacts(user.id),
+    query ? [] : listDueContacts(user.id, groupId),
   ]);
 
   const filterItems = groupFilterItems(allGroups, groupId, query);

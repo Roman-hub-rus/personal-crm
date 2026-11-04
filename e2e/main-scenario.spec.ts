@@ -2,7 +2,8 @@
 
 import { expect, test } from "@playwright/test";
 
-import { E2E_SEEDED_CONTACTS } from "./test-database";
+import { signIn } from "./sign-in-helpers";
+import { E2E_OWNER_EMAIL, E2E_SEEDED_CONTACTS } from "./test-database";
 
 test.describe.configure({ mode: "serial" });
 
@@ -84,10 +85,11 @@ test("added a contact -> found it by name -> appended a note -> saved; another b
   await page.reload();
   await expect(page.getByLabel("Заметки")).toHaveValue(expectedNotes);
 
-  // Browser B (separate profile: no shared cookies or storage) sees the same contacts.
-  const contextB = await browser.newContext();
+  // Browser B (separate profile: no shared cookies or storage) signs in as the same user, like a second
+  // device, and sees the same contacts.
+  const contextB = await browser.newContext({ storageState: { cookies: [], origins: [] } });
   const other = await contextB.newPage();
-  await other.goto("/");
+  await signIn(other, E2E_OWNER_EMAIL);
   await expect(other.getByTestId("contact-row")).toHaveCount(E2E_SEEDED_CONTACTS + 1);
   await other.getByRole("searchbox", { name: "Найти контакт по имени" }).fill(name);
   await expect(other.getByTestId("contact-row")).toHaveCount(1);

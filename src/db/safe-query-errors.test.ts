@@ -1,9 +1,10 @@
 import { inspect } from "node:util";
 
-import { describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test } from "vitest";
 
 import { db } from "@/db";
 import { contacts, groups } from "@/db/schema";
+import { signInAs } from "../../vitest.session";
 
 // Everything a log line of a failed query could show: Next.js prints the message, the stack and
 // every field of the error, including its cause.
@@ -23,6 +24,12 @@ async function caught(query: PromiseLike<unknown>): Promise<unknown> {
   }
   throw new Error("The query was expected to fail");
 }
+
+// The rows belong to a signed-in user, so that they fail for the reason the test is about.
+let ownerId: string;
+beforeEach(async () => {
+  ownerId = (await signInAs("owner@example.com")).user.id;
+});
 
 const ivan = {
   name: "Иван Петров",
@@ -55,7 +62,7 @@ function expectNoPersonalData(error: unknown) {
 
 describe("Сбой запроса к базе", () => {
   test("Сбой при сохранении контакта: в ошибке нет имени, телефона, почты и заметок", async () => {
-    const error = await caught(db.insert(contacts).values([ivan, maria]));
+    const error = await caught(db.insert(contacts).values([ivan, maria].map((row) => ({ ...row, ownerId }))));
 
     expectNoPersonalData(error);
     expect(error).toMatchObject({ code: "23502" });
@@ -65,7 +72,7 @@ describe("Сбой запроса к базе", () => {
   test("То же внутри транзакции", async () => {
     const error = await caught(
       db.transaction(async (tx) => {
-        await tx.insert(contacts).values([ivan, maria]);
+        await tx.insert(contacts).values([ivan, maria].map((row) => ({ ...row, ownerId })));
       }),
     );
 
@@ -74,14 +81,14 @@ describe("Сбой запроса к базе", () => {
   });
 
   test("Повтор названия группы: код ошибки на месте, названия в ошибке нет", async () => {
-    await db.insert(groups).values({ name: "Семья Ивановых" });
+    await db.insert(groups).values({ ownerId, name: "Семья Ивановых" });
 
-    const error = await caught(db.insert(groups).values({ name: "семья ивановых" }));
+    const error = await caught(db.insert(groups).values({ ownerId, name: "семья ивановых" }));
 
     const logged = everythingLogged(error);
     expect(logged).not.toContain("Семья Ивановых");
     expect(logged).not.toContain("семья ивановых");
     expect(error).toMatchObject({ code: "23505" });
-    expect(logged).toContain("groups_lower_name_idx");
+    expect(logged).toContain("groups_owner_lower_name_idx");
   });
 });

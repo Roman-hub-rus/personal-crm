@@ -14,6 +14,7 @@ import {
   type FieldErrors,
 } from "@/lib/contact-input";
 import { formatDateTime } from "@/lib/format";
+import { requireUser } from "@/lib/session";
 
 type Failure = { ok: false; fieldErrors?: FieldErrors; message?: string };
 
@@ -37,12 +38,17 @@ const exactMoment = (column: SQLWrapper) =>
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-// Creates groups typed but not yet saved (picking up an existing one case-insensitively instead
-// of making a duplicate), drops ids of groups that were deleted in the meantime, and returns the
-// final set of group ids the contact should belong to.
-async function resolveGroupIds(tx: Tx, groupIds: number[], newGroups: string[]): Promise<number[]> {
+// Creates groups typed but not yet saved (picking up an existing one of the user case-insensitively instead
+// of making a duplicate), drops ids of groups that were deleted in the meantime or belong to another user,
+// and returns the final set of group ids the contact should belong to. Only the user's own groups take part.
+async function resolveGroupIds(tx: Tx, userId: string, groupIds: number[], newGroups: string[]): Promise<number[]> {
   const validExistingIds = groupIds.length
-    ? (await tx.select({ id: groups.id }).from(groups).where(inArray(groups.id, groupIds))).map((row) => row.id)
+    ? (
+        await tx
+          .select({ id: groups.id })
+          .from(groups)
+          .where(and(inArray(groups.id, groupIds), eq(groups.ownerId, userId)))
+      ).map((row) => row.id)
     : [];
 
   if (newGroups.length === 0) {
@@ -51,12 +57,14 @@ async function resolveGroupIds(tx: Tx, groupIds: number[], newGroups: string[]):
 
   await tx
     .insert(groups)
-    .values(newGroups.map((name) => ({ name })))
+    .values(newGroups.map((name) => ({ ownerId: userId, name })))
     .onConflictDoNothing();
   const matchedByName = await tx
     .select({ id: groups.id })
     .from(groups)
-    .where(or(...newGroups.map((name) => sql`lower(${groups.name}) = lower(${name})`)));
+    .where(
+      and(eq(groups.ownerId, userId), or(...newGroups.map((name) => sql`lower(${groups.name}) = lower(${name})`))),
+    );
 
   return Array.from(new Set([...validExistingIds, ...matchedByName.map((row) => row.id)]));
 }
@@ -69,6 +77,7 @@ async function saveContactGroups(tx: Tx, contactId: number, groupIds: number[]) 
 }
 
 export async function createContact(input: unknown): Promise<CreateContactResult> {
+  const user = await requireUser();
   const parsed = contactInputSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, fieldErrors: toFieldErrors(parsed.error) };
@@ -80,6 +89,7 @@ export async function createContact(input: unknown): Promise<CreateContactResult
       .insert(contacts)
       .values({
         ...fields,
+        ownerId: user.id,
         contactFrequency: frequency,
         // All moments come from the database clock, like the "Пора связаться" query.
         lastNoteAt: fields.notes === null ? null : sql`now()`,
@@ -87,7 +97,7 @@ export async function createContact(input: unknown): Promise<CreateContactResult
       })
       .returning({ id: contacts.id, name: contacts.name });
 
-    const finalGroupIds = await resolveGroupIds(tx, groupIds, newGroups);
+    const finalGroupIds = await resolveGroupIds(tx, user.id, groupIds, newGroups);
     await saveContactGroups(tx, created.id, finalGroupIds);
     return created;
   });
@@ -98,6 +108,7 @@ export async function createContact(input: unknown): Promise<CreateContactResult
 }
 
 export async function updateContact(id: number, input: unknown): Promise<UpdateContactResult> {
+  const user = await requireUser();
   if (!Number.isInteger(id) || id <= 0) {
     return { ok: false, message: "Контакт не найден" };
   }
@@ -124,11 +135,11 @@ export async function updateContact(id: number, input: unknown): Promise<UpdateC
             ? null
             : sql`case when ${contacts.contactFrequency} is null then now() else ${contacts.frequencySetAt} end`,
       })
-      .where(eq(contacts.id, id))
+      .where(and(eq(contacts.id, id), eq(contacts.ownerId, user.id)))
       .returning();
     if (!updated) return null;
 
-    const finalGroupIds = await resolveGroupIds(tx, groupIds, newGroups);
+    const finalGroupIds = await resolveGroupIds(tx, user.id, groupIds, newGroups);
     await saveContactGroups(tx, id, finalGroupIds);
     const contactGroupRows =
       finalGroupIds.length > 0
@@ -137,6 +148,7 @@ export async function updateContact(id: number, input: unknown): Promise<UpdateC
     const allGroups = await tx
       .select({ id: groups.id, name: groups.name })
       .from(groups)
+      .where(eq(groups.ownerId, user.id))
       .orderBy(sql`${groups.name} collate "ru-RU-x-icu"`);
 
     return { updated, contactGroupRows, allGroups };
@@ -160,6 +172,7 @@ export async function updateContact(id: number, input: unknown): Promise<UpdateC
 // "Связались": remembers the moment of contact right away, without saving the card.
 // Notes, the moment of the last note and "Сохранено · …" in the card stay as they are.
 export async function markContacted(id: number): Promise<MarkContactedResult> {
+  const user = await requireUser();
   if (!Number.isInteger(id) || id <= 0) {
     return { ok: false, message: "Контакт не найден" };
   }
@@ -169,14 +182,14 @@ export async function markContacted(id: number): Promise<MarkContactedResult> {
     const [current] = await tx
       .select({ previous: exactMoment(contacts.lastContactedAt) })
       .from(contacts)
-      .where(eq(contacts.id, id))
+      .where(and(eq(contacts.id, id), eq(contacts.ownerId, user.id)))
       .for("update");
     if (!current) return null;
 
     const [updated] = await tx
       .update(contacts)
       .set({ lastContactedAt: sql`now()`, updatedAt: sql`${contacts.updatedAt}` })
-      .where(eq(contacts.id, id))
+      .where(and(eq(contacts.id, id), eq(contacts.ownerId, user.id)))
       .returning({ name: contacts.name, markedAt: exactMoment(contacts.lastContactedAt) });
     return { name: updated.name, markedAt: updated.markedAt!, previous: current.previous };
   });
@@ -196,6 +209,7 @@ export async function undoMarkContacted(
   markedAt: string,
   previous: string | null,
 ): Promise<UndoMarkContactedResult> {
+  const user = await requireUser();
   if (
     !Number.isInteger(id) ||
     id <= 0 ||
@@ -215,6 +229,7 @@ export async function undoMarkContacted(
     .where(
       and(
         eq(contacts.id, id),
+        eq(contacts.ownerId, user.id),
         sql`${contacts.lastContactedAt} = ${markedAt}::timestamptz`,
         previous === null ? undefined : sql`${previous}::timestamptz <= ${markedAt}::timestamptz`,
       ),
@@ -226,11 +241,15 @@ export async function undoMarkContacted(
 }
 
 export async function deleteContact(id: number): Promise<DeleteContactResult> {
+  const user = await requireUser();
   if (!Number.isInteger(id) || id <= 0) {
     return { ok: false, message: "Контакт не найден" };
   }
 
-  const [deleted] = await db.delete(contacts).where(eq(contacts.id, id)).returning({ name: contacts.name });
+  const [deleted] = await db
+    .delete(contacts)
+    .where(and(eq(contacts.id, id), eq(contacts.ownerId, user.id)))
+    .returning({ name: contacts.name });
 
   if (!deleted) {
     return { ok: false, message: "Контакт не найден — возможно, его уже удалили" };

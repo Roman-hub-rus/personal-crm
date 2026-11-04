@@ -13,8 +13,11 @@ RUN npm install -g "$(node -p 'require("./package.json").packageManager')" \
  && pnpm install --frozen-lockfile
 
 COPY . .
-# The app reads DATABASE_URL on import, but the build never connects, so a placeholder is enough.
-RUN DATABASE_URL=postgres://build@localhost/build pnpm build \
+# The app reads DATABASE_URL and the sign-in settings on import, but the build never connects or signs anyone in,
+# so placeholders are enough. The real values come from the server settings when the container starts.
+RUN DATABASE_URL=postgres://build@localhost/build \
+    BETTER_AUTH_SECRET=build-only-placeholder BETTER_AUTH_URL=http://localhost:3000 \
+    pnpm build \
  && pnpm exec esbuild src/db/migrate.ts src/db/seed.ts --bundle --platform=node --format=esm \
       --target=node24 --outdir=db-scripts --out-extension:.js=.mjs
 

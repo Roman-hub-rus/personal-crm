@@ -1,10 +1,17 @@
 import { eq } from "drizzle-orm";
-import { describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test } from "vitest";
 
 import { db } from "@/db";
 import { contactGroups, contacts, groups } from "@/db/schema";
+import { signInAs } from "../../../vitest.session";
 
 import { createContact, deleteContact, updateContact } from "./actions";
+
+// Every test acts as one signed-in user; the groups it inserts directly belong to that user.
+let userId: string;
+beforeEach(async () => {
+  userId = (await signInAs("anna@example.com")).user.id;
+});
 
 function baseInput(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -31,7 +38,7 @@ async function membersOf(groupId: number): Promise<number[]> {
 
 describe("createContact", () => {
   test("Новый контакт с группами", async () => {
-    const [friends] = await db.insert(groups).values({ name: "Друзья" }).returning({ id: groups.id });
+    const [friends] = await db.insert(groups).values({ ownerId: userId, name: "Друзья" }).returning({ id: groups.id });
 
     const result = await createContact(baseInput({ groupIds: [friends.id] }));
 
@@ -51,7 +58,7 @@ describe("createContact", () => {
   });
 
   test("Вписал название существующей группы", async () => {
-    const [tennis] = await db.insert(groups).values({ name: "Теннис" }).returning({ id: groups.id });
+    const [tennis] = await db.insert(groups).values({ ownerId: userId, name: "Теннис" }).returning({ id: groups.id });
 
     const result = await createContact(baseInput({ newGroups: ["теннис"] }));
 
@@ -104,8 +111,8 @@ describe("createContact", () => {
 
 describe("updateContact", () => {
   test("Контакт в нескольких группах", async () => {
-    const [friends] = await db.insert(groups).values({ name: "Друзья" }).returning({ id: groups.id });
-    const [tennis] = await db.insert(groups).values({ name: "Теннис" }).returning({ id: groups.id });
+    const [friends] = await db.insert(groups).values({ ownerId: userId, name: "Друзья" }).returning({ id: groups.id });
+    const [tennis] = await db.insert(groups).values({ ownerId: userId, name: "Теннис" }).returning({ id: groups.id });
     const created = await createContact(baseInput());
     if (!created.ok) throw new Error("unreachable");
 
@@ -117,7 +124,7 @@ describe("updateContact", () => {
   });
 
   test("Отметил группы и сохранил", async () => {
-    const [family] = await db.insert(groups).values({ name: "Семья" }).returning({ id: groups.id });
+    const [family] = await db.insert(groups).values({ ownerId: userId, name: "Семья" }).returning({ id: groups.id });
     const created = await createContact(baseInput());
     if (!created.ok) throw new Error("unreachable");
 
@@ -130,8 +137,8 @@ describe("updateContact", () => {
   });
 
   test("Убрал контакт из группы", async () => {
-    const [family] = await db.insert(groups).values({ name: "Семья" }).returning({ id: groups.id });
-    const [tennis] = await db.insert(groups).values({ name: "Теннис" }).returning({ id: groups.id });
+    const [family] = await db.insert(groups).values({ ownerId: userId, name: "Семья" }).returning({ id: groups.id });
+    const [tennis] = await db.insert(groups).values({ ownerId: userId, name: "Теннис" }).returning({ id: groups.id });
     const created = await createContact(baseInput({ groupIds: [family.id, tennis.id] }));
     if (!created.ok) throw new Error("unreachable");
 
@@ -143,7 +150,7 @@ describe("updateContact", () => {
   });
 
   test("Удалил контакт из группы", async () => {
-    const [tennis] = await db.insert(groups).values({ name: "Теннис" }).returning({ id: groups.id });
+    const [tennis] = await db.insert(groups).values({ ownerId: userId, name: "Теннис" }).returning({ id: groups.id });
     const first = await createContact(baseInput({ name: "Первый", groupIds: [tennis.id] }));
     const second = await createContact(baseInput({ name: "Второй", groupIds: [tennis.id] }));
     const third = await createContact(baseInput({ name: "Третий", groupIds: [tennis.id] }));

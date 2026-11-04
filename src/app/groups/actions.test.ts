@@ -1,10 +1,17 @@
 import { eq } from "drizzle-orm";
-import { describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test } from "vitest";
 
 import { db } from "@/db";
 import { contactGroups, contacts, groups } from "@/db/schema";
+import { signInAs } from "../../../vitest.session";
 
 import { createGroup, deleteGroup, renameGroup } from "./actions";
+
+// Every test acts as one signed-in user; the groups and contacts it inserts directly belong to that user.
+let userId: string;
+beforeEach(async () => {
+  userId = (await signInAs("anna@example.com")).user.id;
+});
 
 describe("createGroup", () => {
   test("Пустое название", async () => {
@@ -23,7 +30,7 @@ describe("createGroup", () => {
   });
 
   test("Такая группа уже есть", async () => {
-    await db.insert(groups).values({ name: "Теннис" });
+    await db.insert(groups).values({ ownerId: userId, name: "Теннис" });
 
     const result = await createGroup("теннис");
 
@@ -41,10 +48,15 @@ describe("createGroup", () => {
 
 describe("renameGroup", () => {
   test("Переименовал группу", async () => {
-    const [tennis] = await db.insert(groups).values({ name: "Теннис" }).returning({ id: groups.id });
+    const [tennis] = await db.insert(groups).values({ ownerId: userId, name: "Теннис" }).returning({ id: groups.id });
     const [p1, p2, p3] = await db
       .insert(contacts)
-      .values([{ name: "Контакт 1" }, { name: "Контакт 2" }, { name: "Контакт 3" }])
+      .values(
+        [{ name: "Контакт 1" }, { name: "Контакт 2" }, { name: "Контакт 3" }].map((row) => ({
+          ...row,
+          ownerId: userId,
+        })),
+      )
       .returning({ id: contacts.id });
     await db.insert(contactGroups).values([
       { contactId: p1.id, groupId: tennis.id },
@@ -60,8 +72,8 @@ describe("renameGroup", () => {
   });
 
   test("Название занято другой группой", async () => {
-    await db.insert(groups).values({ name: "Теннис" });
-    const [friends] = await db.insert(groups).values({ name: "Друзья" }).returning({ id: groups.id });
+    await db.insert(groups).values({ ownerId: userId, name: "Теннис" });
+    const [friends] = await db.insert(groups).values({ ownerId: userId, name: "Друзья" }).returning({ id: groups.id });
 
     const result = await renameGroup(friends.id, "теннис");
 
@@ -71,7 +83,7 @@ describe("renameGroup", () => {
   });
 
   test("Сменил только регистр", async () => {
-    const [tennis] = await db.insert(groups).values({ name: "теннис" }).returning({ id: groups.id });
+    const [tennis] = await db.insert(groups).values({ ownerId: userId, name: "теннис" }).returning({ id: groups.id });
 
     const result = await renameGroup(tennis.id, "Теннис");
 
@@ -81,10 +93,15 @@ describe("renameGroup", () => {
 
 describe("deleteGroup", () => {
   test("Удалил группу", async () => {
-    const [tennis] = await db.insert(groups).values({ name: "Теннис" }).returning({ id: groups.id });
+    const [tennis] = await db.insert(groups).values({ ownerId: userId, name: "Теннис" }).returning({ id: groups.id });
     const [p1, p2, p3] = await db
       .insert(contacts)
-      .values([{ name: "Контакт 1" }, { name: "Контакт 2" }, { name: "Контакт 3" }])
+      .values(
+        [{ name: "Контакт 1" }, { name: "Контакт 2" }, { name: "Контакт 3" }].map((row) => ({
+          ...row,
+          ownerId: userId,
+        })),
+      )
       .returning({ id: contacts.id });
     await db.insert(contactGroups).values([
       { contactId: p1.id, groupId: tennis.id },

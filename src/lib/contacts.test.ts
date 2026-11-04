@@ -1,37 +1,46 @@
 import { eq } from "drizzle-orm";
-import { describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test } from "vitest";
 
 import { db } from "@/db";
-import { contactGroups, contacts, groups } from "@/db/schema";
+import { contacts } from "@/db/schema";
+import {
+  insertContact as insertContactFor,
+  insertGroup as insertGroupFor,
+  insertOverdueContact,
+} from "../../test-support/data";
+import { signInAs } from "../../vitest.session";
 
 import { listContacts, listDueContacts } from "./contacts";
 
-async function insertGroup(name: string) {
-  const [group] = await db.insert(groups).values({ name }).returning({ id: groups.id });
-  return group.id;
-}
+// Every test works with the contacts of one user.
+let userId: string;
+beforeEach(async () => {
+  userId = (await signInAs("anna@example.com")).user.id;
+});
 
-async function insertContact(name: string, groupIds: number[] = []) {
-  const [contact] = await db.insert(contacts).values({ name }).returning({ id: contacts.id });
-  if (groupIds.length > 0) {
-    await db.insert(contactGroups).values(groupIds.map((groupId) => ({ contactId: contact.id, groupId })));
-  }
-  return contact.id;
-}
+const insertGroup = (name: string) => insertGroupFor(userId, name);
+const insertContact = (name: string, groupIds: number[] = []) => insertContactFor(userId, name, groupIds);
 
 describe("listContacts", () => {
   test("возвращает контакты по алфавиту", async () => {
-    await db.insert(contacts).values([{ name: "Борис" }, { name: "Анна" }, { name: "Вера" }]);
+    await db
+      .insert(contacts)
+      .values([{ name: "Борис" }, { name: "Анна" }, { name: "Вера" }].map((row) => ({ ...row, ownerId: userId })));
 
-    const result = await listContacts();
+    const result = await listContacts(userId);
 
     expect(result.map((contact) => contact.name)).toEqual(["Анна", "Борис", "Вера"]);
   });
 
   test("фильтрует по имени без учёта регистра и «ё»", async () => {
-    await db.insert(contacts).values([{ name: "Алёна Иванова" }, { name: "Елена Петрова" }, { name: "Борис Орлов" }]);
+    await db.insert(contacts).values(
+      [{ name: "Алёна Иванова" }, { name: "Елена Петрова" }, { name: "Борис Орлов" }].map((row) => ({
+        ...row,
+        ownerId: userId,
+      })),
+    );
 
-    const result = await listContacts("АЛЕНА");
+    const result = await listContacts(userId, "АЛЕНА");
 
     expect(result.map((contact) => contact.name)).toEqual(["Алёна Иванова"]);
   });
@@ -43,7 +52,7 @@ describe("listContacts", () => {
     await insertContact("Анна Теннисная", [tennis]);
     await insertContact("Борис Вне группы");
 
-    const result = await listContacts("", tennis);
+    const result = await listContacts(userId, "", tennis);
 
     expect(result.map((contact) => contact.name)).toEqual(["Анна Теннисная", "Вера Теннисная"]);
   });
@@ -53,7 +62,7 @@ describe("listContacts", () => {
     await insertContact("В группе", [tennis]);
     await insertContact("Без группы");
 
-    const result = await listContacts("", null);
+    const result = await listContacts(userId, "", null);
 
     expect(result.map((contact) => contact.name)).toEqual(["Без группы", "В группе"]);
   });
@@ -62,7 +71,7 @@ describe("listContacts", () => {
     const empty = await insertGroup("Пустая");
     await insertContact("Кто-то");
 
-    const result = await listContacts("", empty);
+    const result = await listContacts(userId, "", empty);
 
     expect(result).toEqual([]);
   });
@@ -72,7 +81,7 @@ describe("listContacts", () => {
     await insertContact("Анна Теннисная", [tennis]);
     await insertContact("Анна Вне группы");
 
-    const result = await listContacts("анна", tennis);
+    const result = await listContacts(userId, "анна", tennis);
 
     expect(result.map((contact) => contact.name)).toEqual(["Анна Теннисная"]);
   });
@@ -81,7 +90,7 @@ describe("listContacts", () => {
     const tennis = await insertGroup("Теннис");
     await insertContact("Анна Теннисная", [tennis]);
 
-    const result = await listContacts("борис", tennis);
+    const result = await listContacts(userId, "борис", tennis);
 
     expect(result).toEqual([]);
   });
@@ -91,7 +100,7 @@ describe("listContacts", () => {
     const tennis = await insertGroup("Теннис");
     await insertContact("Анна", [tennis, friends]);
 
-    const [result] = await listContacts();
+    const [result] = await listContacts(userId);
 
     expect(result.groups).toEqual(["Друзья", "Теннис"]);
   });
@@ -99,7 +108,7 @@ describe("listContacts", () => {
   test("Контакт без групп", async () => {
     await insertContact("Анна");
 
-    const [result] = await listContacts();
+    const [result] = await listContacts(userId);
 
     expect(result.groups).toEqual([]);
   });
@@ -110,27 +119,14 @@ describe("listContacts", () => {
 
     await db.delete(contacts).where(eq(contacts.id, id));
 
-    const result = await listContacts("", tennis);
+    const result = await listContacts(userId, "", tennis);
 
     expect(result).toEqual([]);
   });
 });
 
 describe("listDueContacts", () => {
-  async function insertOverdue(name: string, groupIds: number[] = []) {
-    const [contact] = await db
-      .insert(contacts)
-      .values({
-        name,
-        contactFrequency: "week",
-        frequencySetAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-      })
-      .returning({ id: contacts.id });
-    if (groupIds.length > 0) {
-      await db.insert(contactGroups).values(groupIds.map((groupId) => ({ contactId: contact.id, groupId })));
-    }
-    return contact.id;
-  }
+  const insertOverdue = (name: string, groupIds: number[] = []) => insertOverdueContact(userId, name, groupIds);
 
   test("Выбрана группа", async () => {
     const tennis = await insertGroup("Теннис");
@@ -138,7 +134,7 @@ describe("listDueContacts", () => {
     await insertOverdue("Второй", [tennis]);
     await insertOverdue("Третий");
 
-    const result = await listDueContacts(tennis);
+    const result = await listDueContacts(userId, tennis);
 
     expect(result.map((contact) => contact.name)).toEqual(["Первый", "Второй"]);
   });
@@ -147,7 +143,7 @@ describe("listDueContacts", () => {
     const family = await insertGroup("Семья");
     await insertOverdue("Просроченный без группы");
 
-    const result = await listDueContacts(family);
+    const result = await listDueContacts(userId, family);
 
     expect(result).toEqual([]);
   });

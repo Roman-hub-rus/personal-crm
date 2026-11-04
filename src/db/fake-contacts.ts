@@ -768,12 +768,15 @@ function makeEmail(random: Random, firstName: string, lastName: string): string 
   return `${local}@${random.pick(EMAIL_DOMAINS)}`;
 }
 
-export function generateFakeContacts(count: number, seed = 20261008, now = new Date()): NewContact[] {
+// Test contacts without an owner: the seed gives them to the owner it is run for.
+export type FakeContact = Omit<NewContact, "ownerId">;
+
+export function generateFakeContacts(count: number, seed = 20261008, now = new Date()): FakeContact[] {
   const random = createRandom(seed);
   // A separate stream: adding "Пора связаться" data does not change the other contacts.
   const keepInTouchRandom = createRandom(seed + 1);
   const usedNames = new Set<string>();
-  const result: NewContact[] = [];
+  const result: FakeContact[] = [];
   const fourYearsAgo = new Date(now.getTime() - 4 * 365 * DAY_MS);
 
   while (result.length < count) {
@@ -786,7 +789,7 @@ export function generateFakeContacts(count: number, seed = 20261008, now = new D
       fourYearsAgo.getTime() + random.next() * (now.getTime() - fourYearsAgo.getTime() - DAY_MS),
     );
     const { notes, lastNoteAt } = makeNotes(random, gender, createdAt, now);
-    const contact: NewContact = {
+    const contact: FakeContact = {
       name,
       about: makeAbout(random, gender),
       howWeMet: makeHowWeMet(random, gender),

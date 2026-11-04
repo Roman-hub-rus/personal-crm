@@ -5,7 +5,7 @@ import { expect, type Page } from "@playwright/test";
 import postgres from "postgres";
 
 import type { ContactFrequency } from "../src/db/schema";
-import { getTestDatabaseUrl, splitTestDatabaseUrl } from "./test-database";
+import { E2E_OWNER_EMAIL, getTestDatabaseUrl, splitTestDatabaseUrl } from "./test-database";
 
 let client: postgres.Sql | undefined;
 
@@ -16,6 +16,13 @@ function db(): postgres.Sql {
     client = postgres(url, { max: 1, onnotice: () => {} });
   }
   return client;
+}
+
+// The user who owns the test contacts and everything these helpers insert.
+async function ownerId(): Promise<string> {
+  const [owner] = await db()<{ id: string }[]>`select id from users where email = ${E2E_OWNER_EMAIL}`;
+  expect(owner, `user ${E2E_OWNER_EMAIL}`).toBeDefined();
+  return owner.id;
 }
 
 export async function closeDatabase() {
@@ -41,7 +48,9 @@ export async function deleteTestContacts() {
 
 // Adds a group straight to the database with the contacts of these names in it.
 export async function insertGroup(name: string, memberNames: string[]) {
-  const [group] = await db()<{ id: number }[]>`insert into groups (name) values (${name}) returning id`;
+  const [group] = await db()<{ id: number }[]>`
+    insert into groups (owner_id, name) values (${await ownerId()}, ${name}) returning id
+  `;
   const result = await db()`
     insert into contact_groups (contact_id, group_id)
     select id, ${group.id} from contacts where name = any(${memberNames})
@@ -56,8 +65,8 @@ export async function insertContact(
   { frequency, notes, ...moments }: { frequency?: ContactFrequency; notes?: string } & Partial<Record<Moment, string>>,
 ) {
   await db()`
-    insert into contacts (name, notes, contact_frequency, frequency_set_at)
-    values (${name}, ${notes ?? null}, ${frequency ?? null}, ${frequency ? db()`now()` : null})
+    insert into contacts (owner_id, name, notes, contact_frequency, frequency_set_at)
+    values (${await ownerId()}, ${name}, ${notes ?? null}, ${frequency ?? null}, ${frequency ? db()`now()` : null})
   `;
   await setMomentsAgo(name, moments);
 }

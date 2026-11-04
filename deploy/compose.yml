@@ -1,10 +1,11 @@
 # Production stack on the server: the app and its own Postgres, compose project "prod".
 # Comes to the server with every deploy (crm-deploy.sh sync puts this folder in /opt/personal-crm/deploy).
 # The scripts here run it as `docker compose -p prod -f deploy/compose.yml --env-file /opt/personal-crm/.env`
-# (see lib.sh); .env holds the database password, its template is .env.example.
+# (see lib.sh); .env holds the database password and the sign-in settings, its template is .env.example.
+# A missing setting stops the deploy at `docker compose config` (the "sync" step), before any backup or migration.
 name: prod
 
-x-app-env: &app-env
+x-db-env: &db-env
   DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
 
 # Container logs are capped so they cannot fill the server disk.
@@ -39,7 +40,10 @@ services:
     image: personal-crm:${APP_TAG:-current}
     profiles: [jobs]
     command: ["node", "db/migrate.mjs"]
-    environment: *app-env
+    environment:
+      <<: *db-env
+      # The contacts that exist before sign-in go to the user with this email; `db/seed.mjs` uses it too.
+      OWNER_EMAIL: ${OWNER_EMAIL:?OWNER_EMAIL is not set in .env}
     depends_on:
       db:
         condition: service_healthy
@@ -49,7 +53,14 @@ services:
     # crm-deploy.sh and rollback.sh point the `current` tag at the version that should run.
     image: personal-crm:${APP_TAG:-current}
     restart: unless-stopped
-    environment: *app-env
+    environment:
+      <<: *db-env
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is not set in .env}
+      # The public address of the app: sign-in links and cookies are built from it.
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?BETTER_AUTH_URL is not set in .env}
+      # Where sign-in emails go (the mail service) and from which address.
+      SMTP_URL: ${SMTP_URL:?SMTP_URL is not set in .env}
+      MAIL_FROM: ${MAIL_FROM:?MAIL_FROM is not set in .env}
     ports:
       # Reachable only from the server itself (nginx proxies to it).
       - "127.0.0.1:3000:3000"
