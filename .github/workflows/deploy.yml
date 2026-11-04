@@ -1,5 +1,6 @@
 # Builds the app image on every push to main and rolls it out to the server.
-# Server side: deploy/compose.yml (the stack) and deploy/crm-deploy.sh (all the deploy key may run).
+# All server-side logic lives in deploy/: this workflow only calls deploy/crm-deploy.sh over SSH
+# (the forced command of the deploy key), which first receives the whole deploy/ folder.
 name: Deploy
 
 on:
@@ -22,7 +23,7 @@ jobs:
     env:
       IMAGE: personal-crm:${{ github.sha }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Build image
         run: docker build --build-arg APP_VERSION=${{ github.sha }} --tag "$IMAGE" .
@@ -47,8 +48,11 @@ jobs:
             ServerAliveInterval 30
           EOF
 
+      - name: Upload deploy scripts
+        run: tar -C deploy -czf - . | ssh server sync
+
       - name: Upload image
         run: docker save "$IMAGE" | gzip | ssh server load
 
-      - name: Migrate and switch to the new version
+      - name: Back up database, migrate, switch to the new version
         run: ssh server release ${{ github.sha }}

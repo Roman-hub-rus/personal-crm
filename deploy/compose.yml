@@ -1,10 +1,18 @@
-# Production stack on the server: the app and its own Postgres.
-# Lives in /opt/personal-crm/compose.yml next to .env (see deploy/.env.example) and is installed by hand:
-# the deploy key can only run deploy/crm-deploy.sh, which switches app versions but never changes this file.
-name: personal-crm
+# Production stack on the server: the app and its own Postgres, compose project "prod".
+# Comes to the server with every deploy (crm-deploy.sh sync puts this folder in /opt/personal-crm/deploy).
+# The scripts here run it as `docker compose -p prod -f deploy/compose.yml --env-file /opt/personal-crm/.env`
+# (see lib.sh); .env holds the database password, its template is .env.example.
+name: prod
 
 x-app-env: &app-env
   DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+
+# Container logs are capped so they cannot fill the server disk.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
 
 services:
   db:
@@ -23,9 +31,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    logging: *logging
 
-  # One-off jobs with the app image: `docker compose run --rm migrate` applies migrations,
-  # `docker compose run --rm migrate node db/seed.mjs` fills an empty database with test contacts.
+  # One-off jobs with the app image: `compose run --rm migrate` applies migrations,
+  # `compose run --rm migrate node db/seed.mjs` fills an empty database with test contacts.
   migrate:
     image: personal-crm:${APP_TAG:-current}
     profiles: [jobs]
@@ -34,9 +43,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    logging: *logging
 
   app:
-    # crm-deploy.sh points the `current` tag at the version being released.
+    # crm-deploy.sh and rollback.sh point the `current` tag at the version that should run.
     image: personal-crm:${APP_TAG:-current}
     restart: unless-stopped
     environment: *app-env
@@ -52,6 +62,12 @@ services:
       timeout: 5s
       retries: 6
       start_period: 20s
+    logging: *logging
 
 volumes:
   db-data:
+    # The database files. The stack was first started as project "personal-crm" and this volume got its name then.
+    # External: compose only attaches it and never creates, recreates or removes it, so the data survives
+    # any change to this file. A new server needs it once: `docker volume create personal-crm_db-data`.
+    name: personal-crm_db-data
+    external: true
