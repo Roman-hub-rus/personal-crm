@@ -51,6 +51,8 @@ compose up --detach --wait --wait-timeout 120 app || {
   fail "version $target does not start"
 }
 check_health "$target" || fail "version $target started, but the health check failed"
+# The next deploy keeps this version as the last working one.
+mark_working "$target"
 echo "==> The app now runs $target"
 echo "    If you also need the data of that version, restore a backup with $target in its name:"
 echo "    sudo -u deploy $DEPLOY_DIR/restore.sh"
