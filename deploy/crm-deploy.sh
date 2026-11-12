@@ -52,6 +52,12 @@ release() {
   take_lock "$LOCK_WAIT_SECONDS"
   previous=$(app_version)
 
+  # Servers deployed before the list of working versions existed: the version that runs now counts as working
+  # if it answers the health check. Once the list exists, only successful releases and rollbacks add to it.
+  if [[ ! -f $WORKING_VERSIONS && $previous != none ]] && check_health "$previous" >/dev/null 2>&1; then
+    mark_working "$previous"
+  fi
+
   echo "==> Backing up the database (app version before this deploy: $previous)"
   "$DEPLOY_DIR/backup.sh" >/dev/null
   prune_backups
@@ -63,22 +69,26 @@ release() {
   docker tag "$IMAGE:$sha" "$IMAGE:current"
   if ! compose up --detach --wait --wait-timeout 120 app; then
     compose logs --tail 50 app >&2 || true
-    release_failed "$sha" "$previous"
+    release_failed "$sha"
   fi
 
   echo "==> Health check"
-  check_health "$sha" || release_failed "$sha" "$previous"
+  check_health "$sha" || release_failed "$sha"
 
-  prune_images "$sha" "$previous"
+  mark_working "$sha"
+  prune_images "$sha" "$(last_working_except "$sha")"
   echo "==> Released $sha"
 }
 
+# The version to suggest is the last one that worked, not the one that ran before this deploy:
+# after a failed deploy, that one may be broken too.
 release_failed() {
-  local sha=$1 previous=$2
+  local sha=$1 working
+  working=$(last_working_except "$sha")
   echo "==> Release of $sha FAILED. Nothing was rolled back: the app stays on $sha." >&2
-  if [[ $previous != none && $previous != "$sha" ]]; then
-    echo "    To return the previous version, a person runs on the server:" >&2
-    echo "    sudo -u deploy $DEPLOY_DIR/rollback.sh $previous" >&2
+  if [[ -n $working ]]; then
+    echo "    To return the last working version, a person runs on the server:" >&2
+    echo "    sudo -u deploy $DEPLOY_DIR/rollback.sh $working" >&2
   fi
   exit 1
 }
@@ -91,11 +101,12 @@ prune_backups() {
     | while read -r name; do rm -f -- "${BACKUP_DIR:?}/$name"; done
 }
 
-# After a successful release keeps only the new version and the one before it, for a manual rollback.
+# After a successful release keeps only the new version and the last working one before it, for a manual rollback.
+# A redeploy of the running version or a deploy after a failed one keeps that working version too.
 prune_images() {
-  local keep_new=$1 keep_previous=$2 tag
+  local keep_new=$1 keep_working=$2 tag
   for tag in $(image_versions); do
-    [[ $tag == "$keep_new" || $tag == "$keep_previous" ]] || docker rmi "$IMAGE:$tag" >/dev/null || true
+    [[ $tag == "$keep_new" || $tag == "$keep_working" ]] || docker rmi "$IMAGE:$tag" >/dev/null || true
   done
   docker image prune --force >/dev/null
 }

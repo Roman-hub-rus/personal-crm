@@ -6,6 +6,9 @@ STACK_DIR=/opt/personal-crm
 DEPLOY_DIR=$STACK_DIR/deploy
 BACKUP_DIR=$STACK_DIR/backups
 LOCK_FILE=$STACK_DIR/deploy.lock
+# Versions that passed the health check in production, oldest first, one per line (see mark_working).
+WORKING_VERSIONS=$STACK_DIR/working-versions
+KEEP_WORKING_VERSIONS=20
 IMAGE=personal-crm
 HEALTH_URL=http://127.0.0.1:3000/health
 
@@ -57,6 +60,32 @@ app_version() {
 # Commit SHAs of the app images on this server, newest first.
 image_versions() {
   docker images "$IMAGE" --format '{{.CreatedAt}}|{{.Tag}}' | sort -r | cut -d'|' -f2 | grep -E '^[0-9a-f]{40}$' || true
+}
+
+# Records that <sha> passed the health check in production: called by a successful release or rollback only,
+# so the version of a failed deploy never counts as working. Callers hold the deploy lock.
+mark_working() {
+  local sha=$1
+  if [[ $(tail -n 1 "$WORKING_VERSIONS" 2>/dev/null) != "$sha" ]]; then
+    echo "$sha" >>"$WORKING_VERSIONS"
+  fi
+  tail -n "$KEEP_WORKING_VERSIONS" "$WORKING_VERSIONS" >"$WORKING_VERSIONS.new"
+  mv "$WORKING_VERSIONS.new" "$WORKING_VERSIONS"
+}
+
+# The newest working version other than <sha> whose image is still on this server; prints nothing if there is none.
+last_working_except() {
+  local skip=$1 on_server i
+  local -a versions
+  [[ -f $WORKING_VERSIONS ]] || return 0
+  on_server=$(image_versions)
+  mapfile -t versions <"$WORKING_VERSIONS"
+  for ((i = ${#versions[@]} - 1; i >= 0; i--)); do
+    if [[ -n ${versions[i]} && ${versions[i]} != "$skip" ]] && grep --quiet --line-regexp --fixed-strings -- "${versions[i]}" <<<"$on_server"; then
+      echo "${versions[i]}"
+      return 0
+    fi
+  done
 }
 
 # Smoke test: /health must answer and report the expected version. Prints the answer.
