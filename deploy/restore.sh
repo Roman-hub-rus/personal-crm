@@ -9,6 +9,8 @@
 # the command that puts the saved copy back.
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# Production only: the test stand gets its database from refresh-staging.sh.
+use_env prod
 
 # Human sessions do not queue behind a deploy: they stop and ask to try again later.
 LOCK_WAIT_SECONDS=0

@@ -1,0 +1,39 @@
+# Lets the next steps of a job run `ssh server <command>`: the deploy user on the server, with the deploy key.
+# Whatever the command, the key only runs deploy/crm-deploy.sh there (its forced command).
+name: Server SSH
+description: Configure SSH access to the server as the deploy user
+
+inputs:
+  key:
+    description: Private deploy key (secret DEPLOY_SSH_KEY)
+    required: true
+  host:
+    description: Server address (variable DEPLOY_HOST)
+    required: true
+  known-hosts:
+    description: Server host keys (variable DEPLOY_KNOWN_HOSTS)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Configure SSH
+      shell: bash
+      env:
+        DEPLOY_SSH_KEY: ${{ inputs.key }}
+        DEPLOY_HOST: ${{ inputs.host }}
+        DEPLOY_KNOWN_HOSTS: ${{ inputs.known-hosts }}
+      run: |
+        install -m 700 -d ~/.ssh
+        printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+        cat > ~/.ssh/config <<CONFIG
+        Host server
+          HostName $DEPLOY_HOST
+          User deploy
+          IdentityFile ~/.ssh/deploy_key
+          IdentitiesOnly yes
+          StrictHostKeyChecking yes
+          ServerAliveInterval 30
+        CONFIG

@@ -9,6 +9,8 @@
 # Usage: backup.sh [label]
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# Production only: the test stand has no backups and gets its database from refresh-staging.sh.
+use_env prod
 
 label=${1:-}
 [[ $# -le 1 && ( -z $label || $label =~ ^[a-z0-9-]+$ ) ]] || fail "usage: backup.sh [label of a-z, 0-9 and -]"
