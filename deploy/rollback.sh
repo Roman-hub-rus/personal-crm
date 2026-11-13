@@ -7,6 +7,8 @@
 # that belongs to that version, restore the backup with that version in its name (restore.sh).
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# Production only: the test stand always runs what the last merge to main deployed.
+use_env prod
 
 # Human sessions do not queue behind a deploy: they stop and ask to try again later.
 LOCK_WAIT_SECONDS=0
@@ -45,7 +47,7 @@ EOF
 confirm
 
 echo "==> Starting $IMAGE:$target"
-docker tag "$IMAGE:$target" "$IMAGE:current"
+docker tag "$IMAGE:$target" "$IMAGE:$CURRENT_TAG"
 compose up --detach --wait --wait-timeout 120 app || {
   compose logs --tail 50 app >&2 || true
   fail "version $target does not start"

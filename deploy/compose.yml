@@ -1,9 +1,11 @@
-# Production stack on the server: the app and its own Postgres, compose project "prod".
+# The stack on the server: the app and its own Postgres. One file for both environments, production
+# (compose project "prod") and the test stand ("staging"); the project name is always given by the scripts.
 # Comes to the server with every deploy (crm-deploy.sh sync puts this folder in /opt/personal-crm/deploy).
-# The scripts here run it as `docker compose -p prod -f deploy/compose.yml --env-file /opt/personal-crm/.env`
-# (see lib.sh); .env holds the database password and the sign-in settings, its template is .env.example.
-# A missing setting stops the deploy at `docker compose config` (the "sync" step), before any backup or migration.
-name: prod
+# Run it only through the scripts here: compose() in lib.sh picks the environment's .env and sets
+# APP_TAG, APP_PORT and DB_VOLUME. The image and volume defaults below match no real stack, so a command
+# run without them fails instead of touching another environment's database.
+# .env holds the database password and the sign-in settings, its template is .env.example.
+# A missing setting stops the deploy at `docker compose config`, before any backup or migration.
 
 x-db-env: &db-env
   DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
@@ -14,6 +16,16 @@ x-logging: &logging
   options:
     max-size: 10m
     max-file: "3"
+
+# Memory caps: production and the test stand share a server with 1.8 GB, so one stack cannot take it all.
+x-memory-db: &memory-db
+  resources:
+    limits:
+      memory: 256m
+x-memory-app: &memory-app
+  resources:
+    limits:
+      memory: 384m
 
 services:
   db:
@@ -32,12 +44,13 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    deploy: *memory-db
     logging: *logging
 
   # One-off jobs with the app image: `compose run --rm migrate` applies migrations,
   # `compose run --rm migrate node db/seed.mjs` fills an empty database with test contacts.
   migrate:
-    image: personal-crm:${APP_TAG:-current}
+    image: personal-crm:${APP_TAG:-tag-not-set}
     profiles: [jobs]
     command: ["node", "db/migrate.mjs"]
     environment:
@@ -47,11 +60,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    deploy: *memory-db
     logging: *logging
 
   app:
-    # crm-deploy.sh and rollback.sh point the `current` tag at the version that should run.
-    image: personal-crm:${APP_TAG:-current}
+    # crm-deploy.sh and rollback.sh point the environment's tag (current, staging-current) at the version that should run.
+    image: personal-crm:${APP_TAG:-tag-not-set}
     restart: unless-stopped
     environment:
       <<: *db-env
@@ -62,8 +76,8 @@ services:
       SMTP_URL: ${SMTP_URL:?SMTP_URL is not set in .env}
       MAIL_FROM: ${MAIL_FROM:?MAIL_FROM is not set in .env}
     ports:
-      # Reachable only from the server itself (nginx proxies to it).
-      - "127.0.0.1:3000:3000"
+      # Reachable only from the server itself (nginx proxies to it): 3000 production, 3001 the test stand.
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
     depends_on:
       db:
         condition: service_healthy
@@ -73,12 +87,14 @@ services:
       timeout: 5s
       retries: 6
       start_period: 20s
+    deploy: *memory-app
     logging: *logging
 
 volumes:
   db-data:
-    # The database files. The stack was first started as project "personal-crm" and this volume got its name then.
-    # External: compose only attaches it and never creates, recreates or removes it, so the data survives
-    # any change to this file. A new server needs it once: `docker volume create personal-crm_db-data`.
-    name: personal-crm_db-data
+    # The database files of the environment (see use_env in lib.sh): personal-crm_db-data in production,
+    # staging_db-data on the test stand. External: compose only attaches it and never creates, recreates
+    # or removes it, so the data survives any change to this file. Production on a new server needs it once:
+    # `docker volume create personal-crm_db-data`; a release on the test stand creates its own.
+    name: ${DB_VOLUME:-volume-not-set}
     external: true

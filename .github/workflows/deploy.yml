@@ -1,4 +1,6 @@
-# Builds the app image on every push to main and rolls it out to the server.
+# Builds the app image on every push to main and rolls it out to both environments on the server:
+# the test stand (https://test-app.myfirstcrm.site) and production (https://app.myfirstcrm.site).
+# For now production does not wait for the test stand: a red test stand does not stop it.
 # All server-side logic lives in deploy/: this workflow only calls deploy/crm-deploy.sh over SSH
 # (the forced command of the deploy key), which first receives the whole deploy/ folder.
 name: Deploy
@@ -8,7 +10,8 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# One deploy at a time; a newer push waits for the running one instead of cancelling it.
+# One deploy run at a time; a newer push waits for the running one instead of cancelling it.
+# On the server each environment also has its own lock, so two deploys never change one stand at once.
 concurrency:
   group: deploy-production
   cancel-in-progress: false
@@ -17,7 +20,8 @@ permissions:
   contents: read
 
 jobs:
-  deploy:
+  upload:
+    name: Build and upload
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -28,25 +32,11 @@ jobs:
       - name: Build image
         run: docker build --build-arg APP_VERSION=${{ github.sha }} --tag "$IMAGE" .
 
-      - name: Configure SSH
-        env:
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
-          DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
-        run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          cat > ~/.ssh/config <<EOF
-          Host server
-            HostName $DEPLOY_HOST
-            User deploy
-            IdentityFile ~/.ssh/deploy_key
-            IdentitiesOnly yes
-            StrictHostKeyChecking yes
-            ServerAliveInterval 30
-          EOF
+      - uses: ./.github/actions/server-ssh
+        with:
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          host: ${{ vars.DEPLOY_HOST }}
+          known-hosts: ${{ vars.DEPLOY_KNOWN_HOSTS }}
 
       - name: Upload deploy scripts
         run: tar -C deploy -czf - . | ssh server sync
@@ -54,5 +44,40 @@ jobs:
       - name: Upload image
         run: docker save "$IMAGE" | gzip | ssh server load
 
-      - name: Back up database, migrate, switch to the new version
-        run: ssh server release ${{ github.sha }}
+  staging:
+    name: Test stand
+    needs: upload
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/actions
+
+      - uses: ./.github/actions/server-ssh
+        with:
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          host: ${{ vars.DEPLOY_HOST }}
+          known-hosts: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+
+      - name: Migrate, switch to the new version, check /health
+        run: ssh server release staging ${{ github.sha }}
+
+  prod:
+    name: Production
+    needs: upload
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/actions
+
+      - uses: ./.github/actions/server-ssh
+        with:
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          host: ${{ vars.DEPLOY_HOST }}
+          known-hosts: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+
+      - name: Back up database, migrate, switch to the new version, check /health
+        run: ssh server release prod ${{ github.sha }}
