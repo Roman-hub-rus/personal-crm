@@ -1,0 +1,146 @@
+# Deploys to production (https://app.myfirstcrm.site). Started only by a person: Actions -> Deploy prod -> Run workflow.
+# Production gets only a version that deployed green to the test stand: the workflow checks it in the history of
+# "Deploy staging" runs on main. The image is the same one the test stand got (GHCR, tag = commit SHA).
+#   SHA empty     -> the version of the last green deploy to the test stand
+#   SHA given     -> that version (7 to 40 characters), if it deployed green to the test stand
+#   rollback      -> the production version that ran before the current one; the server knows it.
+#                    The SHA field is ignored and the test stand is not checked.
+# On the server: backup -> migrations (not on a rollback) -> new version -> /health. Nothing is rolled back automatically.
+# After a successful deploy old images are removed: on the server (crm-deploy.sh) and in GHCR (all but the 10 newest builds).
+# The scripts in deploy/ are already on the server: Deploy staging brought them from the same main.
+name: Deploy prod
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit SHA (7+ characters). Empty: the last version that deployed green to the test stand"
+        type: string
+        required: false
+        default: ""
+      rollback:
+        description: "Rollback: return the production version that ran before the current one (SHA field is ignored)"
+        type: boolean
+        default: false
+
+# One production deploy at a time; a second start waits for the running one.
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+  packages: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  prod:
+    name: Production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PACKAGE: personal-crm
+    steps:
+      - name: Check the branch
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Deploy prod runs only from main, not from $GITHUB_REF_NAME"
+          exit 1
+
+      - name: Pick the version that passed the test stand
+        id: pick
+        if: ${{ !inputs.rollback }}
+        env:
+          SHA_INPUT: ${{ inputs.sha }}
+        run: |
+          staging_runs="repos/$GITHUB_REPOSITORY/actions/workflows/deploy-staging.yml/runs?branch=main&status=success&per_page=1"
+          given=$(tr -d '[:space:]' <<<"$SHA_INPUT" | tr '[:upper:]' '[:lower:]')
+          if [[ -z $given ]]; then
+            sha=$(gh api "$staging_runs" --jq '.workflow_runs[0].head_sha // empty')
+            if [[ -z $sha ]]; then
+              echo "::error::No green deploy to the test stand yet: nothing to deploy"
+              exit 1
+            fi
+            echo "mode=the last green deploy to the test stand" >>"$GITHUB_OUTPUT"
+          else
+            if [[ ! $given =~ ^[0-9a-f]{7,40}$ ]]; then
+              echo "::error::\"$SHA_INPUT\" is not a commit SHA (7 to 40 characters 0-9, a-f)"
+              exit 1
+            fi
+            if ! sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$given" --jq .sha 2>/dev/null); then
+              echo "::error::Commit $given is not in the repository, or several commits start with it: give more characters"
+              exit 1
+            fi
+            green=$(gh api "$staging_runs&head_sha=$sha" --jq .total_count)
+            if ((green == 0)); then
+              echo "::error::$sha has not deployed green to the test stand. Production takes only such versions; nothing was changed"
+              exit 1
+            fi
+            echo "mode=given by hand, deployed green to the test stand" >>"$GITHUB_OUTPUT"
+          fi
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+          echo "Version to deploy: $sha"
+
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/actions
+
+      - uses: ./.github/actions/server-ssh
+        with:
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          host: ${{ vars.DEPLOY_HOST }}
+          known-hosts: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+
+      # Usually the test stand has already brought the image; an older version may have been removed from the server.
+      - name: Send the image to the server if it is not there
+        if: ${{ !inputs.rollback }}
+        env:
+          SHA: ${{ steps.pick.outputs.sha }}
+        run: |
+          if [[ $(ssh server has-image "$SHA") == yes ]]; then
+            echo "The image of $SHA is already on the server"
+            exit 0
+          fi
+          registry_image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/$PACKAGE:$SHA"
+          docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin <<<"$GH_TOKEN"
+          if ! docker pull "$registry_image"; then
+            echo "::error::The image of $SHA is neither on the server nor in GHCR (GHCR keeps the 10 newest builds)"
+            exit 1
+          fi
+          docker tag "$registry_image" "$PACKAGE:$SHA"
+          docker save "$PACKAGE:$SHA" | gzip | ssh server load
+
+      - name: Back up database, migrate, switch to the version, check /health
+        env:
+          TARGET: ${{ inputs.rollback && 'rollback' || steps.pick.outputs.sha }}
+          MODE: ${{ inputs.rollback && 'rollback to the version before the current one' || steps.pick.outputs.mode }}
+        run: |
+          if ssh server release prod "$TARGET" | tee release.log; then result=deployed; else result=FAILED; fi
+          sha=$(sed -n 's/^==> Deploying \([0-9a-f]\{40\}\).*/\1/p' release.log)
+          before=$(sed -n 's/^==> Environment: prod, app version before this deploy: //p' release.log)
+          {
+            echo "## Production: $result"
+            echo
+            if [[ -n $sha ]]; then
+              echo "- Version: [\`$sha\`]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$sha)"
+            else
+              echo "- Version: not chosen, the deploy stopped before it (see the log)"
+            fi
+            echo "- How it was chosen: $MODE"
+            echo "- Version before this deploy: ${before:-unknown}"
+          } >>"$GITHUB_STEP_SUMMARY"
+          [[ $result == deployed ]]
+
+      - name: Keep the 10 newest builds in GHCR
+        run: |
+          versions="/users/$GITHUB_REPOSITORY_OWNER/packages/container/$PACKAGE/versions"
+          gh api --paginate "$versions" --jq '.[] | "\(.created_at) \(.id)"' | sort -r | tail -n +11 \
+            | while read -r _ id; do
+              gh api --method DELETE "$versions/$id"
+              echo "Deleted package version $id"
+            done

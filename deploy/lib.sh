@@ -9,6 +9,8 @@ DEPLOY_DIR=$STACK_DIR/deploy
 BACKUP_DIR=$STACK_DIR/backups
 WORKING_VERSIONS=$STACK_DIR/working-versions
 KEEP_WORKING_VERSIONS=20
+# Each kind of backup (before a deploy, daily, before a restore) keeps this many of its newest files.
+KEEP_BACKUPS=7
 IMAGE=personal-crm
 
 # A person runs restore/rollback via `sudo -u deploy` from a home folder the deploy user cannot read.
@@ -95,6 +97,25 @@ app_version() {
 # Commit SHAs of the app images on this server, newest first.
 image_versions() {
   docker images "$IMAGE" --format '{{.CreatedAt}}|{{.Tag}}' | sort -r | cut -d'|' -f2 | grep -E '^[0-9a-f]{40}$' || true
+}
+
+# Kind of a backup from its name prod_<date>_<time>_<version>[_<label>].dump: the label ("daily", "before-restore"),
+# or nothing for a backup taken by a deploy.
+backup_label() {
+  sed -nE 's/^prod_[0-9-]+_[0-9-]+_([0-9a-f]{40}|none)(_([a-z0-9-]+))?\.dump$/\3/p' <<<"$1"
+}
+
+# Keeps the newest KEEP_BACKUPS backups of one kind and deletes older ones of that kind.
+# Names start with the UTC time, so name order is time order. Callers hold the production deploy lock.
+# Usage: prune_backups <label; empty for the backups taken by deploys>
+prune_backups() {
+  local label=$1 name
+  find "$BACKUP_DIR" -maxdepth 1 -type f -name 'prod_*.dump' -printf '%f\n' | sort -r \
+    | while read -r name; do
+      if [[ $(backup_label "$name") == "$label" ]]; then echo "$name"; fi
+    done \
+    | tail -n +$((KEEP_BACKUPS + 1)) \
+    | while read -r name; do rm -f -- "${BACKUP_DIR:?}/$name"; done
 }
 
 # Records that <sha> passed the health check in production: called by a successful release or rollback only,

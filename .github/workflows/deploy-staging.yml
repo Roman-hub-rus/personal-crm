@@ -1,0 +1,88 @@
+# Runs on every push to main: builds the app image, publishes it to GHCR (ghcr.io/<owner>/personal-crm:<commit SHA>)
+# and rolls it out to the test stand (https://test-app.myfirstcrm.site): migrations, new version, /health.
+# Production is deployed only by a person with "Deploy prod" (deploy-prod.yml), and only versions that passed this workflow.
+# All server-side logic lives in deploy/: this workflow only calls deploy/crm-deploy.sh over SSH
+# (the forced command of the deploy key), which first receives the whole deploy/ folder.
+name: Deploy staging
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy to the test stand at a time; a newer push waits for the running one instead of cancelling it.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  upload:
+    name: Build and upload
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      IMAGE: personal-crm:${{ github.sha }}
+    steps:
+      # Deploy prod trusts the green runs of this workflow on main, so other branches never get here.
+      - name: Check the branch
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Deploy staging runs only on main, not on $GITHUB_REF_NAME"
+          exit 1
+
+      - uses: actions/checkout@v7
+
+      # The source label links the GHCR package to this repository.
+      - name: Build image
+        run: >-
+          docker build --build-arg APP_VERSION=${{ github.sha }}
+          --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+          --tag "$IMAGE" .
+
+      - name: Publish image to GHCR
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          registry_image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/personal-crm:$GITHUB_SHA"
+          docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin <<<"$GHCR_TOKEN"
+          docker tag "$IMAGE" "$registry_image"
+          docker push "$registry_image"
+
+      - uses: ./.github/actions/server-ssh
+        with:
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          host: ${{ vars.DEPLOY_HOST }}
+          known-hosts: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+
+      - name: Upload deploy scripts
+        run: tar -C deploy -czf - . | ssh server sync
+
+      - name: Upload image
+        run: docker save "$IMAGE" | gzip | ssh server load
+
+  staging:
+    name: Test stand
+    needs: upload
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/actions
+
+      - uses: ./.github/actions/server-ssh
+        with:
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          host: ${{ vars.DEPLOY_HOST }}
+          known-hosts: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+
+      - name: Migrate, switch to the new version, check /health
+        run: ssh server release staging ${{ github.sha }}
