@@ -300,13 +300,7 @@ printf 'tester:%s\n' "$(openssl passwd -6)" | sudo tee /etc/nginx/test-app.myfir
 Берётся самый новый бэкап любого вида — обычно ежедневный, от 03:00. Нужен свежее — сначала снимите бэкап прода руками:
 `sudo -u deploy /opt/personal-crm/deploy/daily-backup.sh`.
 
-#### Как читать логи стенда
-
-```sh
-ssh crm 'docker logs --tail 100 staging-app-1'
-```
-
-Для прода — то же с `prod-app-1`. База — `staging-db-1` / `prod-db-1`.
+Логи стенда — в разделе «Логи» ниже, с `staging-app-1` вместо `prod-app-1`.
 
 ### Бэкапы
 
@@ -346,6 +340,35 @@ ssh crm
 ```
 
 Дальнейшие команды из разделов ниже выполняются в этом окне, на сервере. Выйти с сервера — `exit`.
+
+### Логи
+
+Логи приложения и базы — в журнале сервера (journald), и у прода, и у стенда. Строки прошлых версий остаются
+после выкатки, отката и восстановления: контейнер пересоздаётся, а журнал — нет. Размер журнала ограничивает
+сама система (не больше 10% диска и не больше 4 ГБ), самые старые строки она удаляет сама.
+
+Каждая строка подписана именем контейнера:
+
+| | прод | стенд |
+| --- | --- | --- |
+| приложение | `prod-app-1` | `staging-app-1` |
+| база | `prod-db-1` | `staging-db-1` |
+
+Команды — на сервере (`ssh crm`); читать журнал можно только через `sudo`:
+
+```sh
+sudo journalctl -t prod-app-1 -n 100 --no-pager          # последние 100 строк приложения прода
+sudo journalctl -t prod-app-1 -f                         # следить в реальном времени; выйти — Ctrl + C
+sudo journalctl -t prod-app-1 --since "1 hour ago"       # за последний час; или --since today, --since "2026-11-14 18:00"
+sudo journalctl -t prod-db-1 --since today               # база прода
+sudo journalctl COM_DOCKER_COMPOSE_PROJECT=prod COM_DOCKER_COMPOSE_SERVICE=migrate --since today   # миграции выкаток
+sudo journalctl COM_DOCKER_COMPOSE_PROJECT=staging --since today                                  # всё со стенда
+journalctl --disk-usage                                  # сколько места занимает весь журнал
+```
+
+Без захода на сервер, с этого компьютера: `ssh crm 'sudo journalctl -t prod-app-1 -n 100 --no-pager'`.
+
+`docker logs prod-app-1` тоже работает, но показывает только текущий контейнер — без строк версий до последней выкатки.
 
 ### Как восстановить базу из бэкапа
 
