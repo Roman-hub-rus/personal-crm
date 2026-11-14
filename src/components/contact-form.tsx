@@ -31,6 +31,19 @@ type ContactFormProps =
       footer?: ReactNode;
     };
 
+// Fields with errors in the order they are shown, to focus the first one. The birthday error belongs to
+// the whole field, and focus goes to its first part, the day.
+const ERROR_FOCUS_ORDER: { error: keyof FieldErrors; inputId: string }[] = [
+  { error: "name", inputId: "contact-name" },
+  { error: "about", inputId: "contact-about" },
+  { error: "phone", inputId: "contact-phone" },
+  { error: "email", inputId: "contact-email" },
+  { error: "howWeMet", inputId: "contact-howWeMet" },
+  { error: "birthday", inputId: "contact-birthDay" },
+  { error: "frequency", inputId: "contact-frequency" },
+  { error: "notes", inputId: "contact-notes" },
+];
+
 const SAVE_FAILED_MESSAGE =
   "Не удалось сохранить. Проверьте, что приложение и база данных запущены, и попробуйте ещё раз.";
 
@@ -61,17 +74,25 @@ export function ContactForm(props: ContactFormProps) {
 
   function setField(field: ContactField, value: string) {
     setValues((previous) => ({ ...previous, [field]: value }));
-    if (errors[field]) {
-      setErrors((previous) => ({ ...previous, [field]: undefined }));
+    const errorKey = errorKeyOf(field);
+    if (errors[errorKey]) {
+      setErrors((previous) => ({ ...previous, [errorKey]: undefined }));
+    }
+  }
+
+  function setBirthday(parts: Partial<Pick<ContactFormValues, "birthDay" | "birthMonth" | "birthYear">>) {
+    setValues((previous) => ({ ...previous, ...parts }));
+    if (errors.birthday) {
+      setErrors((previous) => ({ ...previous, birthday: undefined }));
     }
   }
 
   function showErrors(fieldErrors: FieldErrors = {}, message?: string) {
     setErrors(fieldErrors);
     if (message) toast.error(message);
-    const firstInvalid = CONTACT_FIELDS.find((field) => fieldErrors[field]);
+    const firstInvalid = ERROR_FOCUS_ORDER.find(({ error }) => fieldErrors[error]);
     if (firstInvalid) {
-      formRef.current?.querySelector<HTMLElement>(`[name="${firstInvalid}"]`)?.focus();
+      formRef.current?.querySelector<HTMLElement>(`#${firstInvalid.inputId}`)?.focus();
     }
   }
 
@@ -101,7 +122,7 @@ export function ContactForm(props: ContactFormProps) {
     });
   }
 
-  const fieldProps = (field: ContactField) => ({
+  const fieldProps = (field: Exclude<ContactField, "birthDay" | "birthMonth" | "birthYear">) => ({
     id: `contact-${field}`,
     name: field,
     value: values[field],
@@ -109,6 +130,8 @@ export function ContactForm(props: ContactFormProps) {
     "aria-invalid": errors[field] ? true : undefined,
     "aria-describedby": errors[field] ? `contact-${field}-error` : undefined,
   });
+
+  const hasBirthday = Boolean(values.birthDay || values.birthMonth || values.birthYear);
 
   const savedPhone = savedValues.phone.trim();
   const savedEmail = savedValues.email.trim();
@@ -206,6 +229,35 @@ export function ContactForm(props: ContactFormProps) {
             />
           </Field>
 
+          <Field
+            field="birthday"
+            inputId="contact-birthDay"
+            label="День рождения"
+            error={errors.birthday}
+            action={
+              hasBirthday ? (
+                <button
+                  type="button"
+                  onClick={() => setBirthday({ birthDay: "", birthMonth: "", birthYear: "" })}
+                  className="text-sm font-medium text-primary underline-offset-4 hover:underline hover:opacity-88"
+                >
+                  Очистить
+                </button>
+              ) : null
+            }
+          >
+            <BirthdayInputs
+              day={values.birthDay}
+              month={values.birthMonth}
+              year={values.birthYear}
+              onChange={setBirthday}
+              invalid={Boolean(errors.birthday)}
+            />
+            <p id="contact-birthday-hint" className="text-[13px] leading-[1.45] text-pretty text-muted-foreground">
+              Год можно не указывать
+            </p>
+          </Field>
+
           <Field field="frequency" label="Как часто общаться" error={errors.frequency}>
             <FrequencySelect
               value={values.frequency}
@@ -301,8 +353,13 @@ export function ContactForm(props: ContactFormProps) {
   );
 }
 
+function errorKeyOf(field: ContactField): keyof FieldErrors {
+  return field === "birthDay" || field === "birthMonth" || field === "birthYear" ? "birthday" : field;
+}
+
 function Field({
   field,
+  inputId = `contact-${field}`,
   label,
   required,
   prominent,
@@ -312,7 +369,10 @@ function Field({
   className,
   children,
 }: {
-  field: ContactField;
+  // Names the error shown under the field.
+  field: keyof FieldErrors;
+  // The control the label points to.
+  inputId?: string;
   label: string;
   required?: boolean;
   // Shown as a card title rather than a field label
@@ -327,7 +387,7 @@ function Field({
     <div className={cn("flex flex-col gap-2", className)}>
       <div className="flex min-h-5 items-center justify-between gap-2">
         <Label
-          htmlFor={`contact-${field}`}
+          htmlFor={inputId}
           className={cn("gap-1 text-ink-2", prominent && "font-display text-lg font-semibold text-foreground")}
         >
           {label}
@@ -390,6 +450,133 @@ function FrequencySelect({
         {CONTACT_FREQUENCIES.map((frequency) => (
           <SelectItem key={frequency} value={frequency} className={itemClassName}>
             {FREQUENCY_OPTION_LABELS[frequency]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+const BIRTHDAY_NOT_SET = "none";
+
+const BIRTH_DAYS = Array.from({ length: 31 }, (_, index) => String(index + 1));
+
+const BIRTH_MONTHS = [
+  "январь",
+  "февраль",
+  "март",
+  "апрель",
+  "май",
+  "июнь",
+  "июль",
+  "август",
+  "сентябрь",
+  "октябрь",
+  "ноябрь",
+  "декабрь",
+];
+
+// Day and month selects and a year input in one row, narrow enough for a phone.
+function BirthdayInputs({
+  day,
+  month,
+  year,
+  onChange,
+  invalid,
+}: {
+  day: string;
+  month: string;
+  year: string;
+  onChange: (parts: { birthDay?: string; birthMonth?: string; birthYear?: string }) => void;
+  invalid: boolean;
+}) {
+  const describedBy = invalid ? "contact-birthday-hint contact-birthday-error" : "contact-birthday-hint";
+  return (
+    <div className="grid grid-cols-[5rem_minmax(0,1fr)_4.5rem] gap-1.5">
+      <BirthdayPartSelect
+        id="contact-birthDay"
+        ariaLabel="День"
+        placeholder="День"
+        value={day}
+        options={BIRTH_DAYS.map((value) => ({ value, label: value }))}
+        onChange={(value) => onChange({ birthDay: value })}
+        invalid={invalid}
+        describedBy={describedBy}
+      />
+      <BirthdayPartSelect
+        id="contact-birthMonth"
+        ariaLabel="Месяц"
+        placeholder="Месяц"
+        value={month}
+        options={BIRTH_MONTHS.map((label, index) => ({ value: String(index + 1), label }))}
+        onChange={(value) => onChange({ birthMonth: value })}
+        invalid={invalid}
+        describedBy={describedBy}
+      />
+      <Input
+        id="contact-birthYear"
+        name="birthYear"
+        aria-label="Год"
+        value={year}
+        onChange={(event) => onChange({ birthYear: event.target.value })}
+        inputMode="numeric"
+        autoComplete="off"
+        maxLength={4}
+        placeholder="Год"
+        aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
+        className="h-11 px-3"
+      />
+    </div>
+  );
+}
+
+function BirthdayPartSelect({
+  id,
+  ariaLabel,
+  placeholder,
+  value,
+  options,
+  onChange,
+  invalid,
+  describedBy,
+}: {
+  id: string;
+  ariaLabel: string;
+  placeholder: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+  invalid: boolean;
+  describedBy: string;
+}) {
+  // Radix Select does not allow an empty item value: "—" is "none" inside the select and "" in the form.
+  // While nothing is chosen the select shows its placeholder.
+  return (
+    <Select value={value} onValueChange={(next) => onChange(next === BIRTHDAY_NOT_SET ? "" : next)}>
+      <SelectTrigger
+        id={id}
+        aria-label={ariaLabel}
+        aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
+        className={cn(
+          "w-full min-w-0 gap-1 rounded-lg bg-background pr-2 pl-3 text-base focus-visible:ring-ring/20 data-[size=default]:h-11 md:text-sm dark:bg-background dark:hover:bg-background",
+          !value && "text-muted-foreground",
+        )}
+      >
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent
+        position="popper"
+        sideOffset={8}
+        className="max-h-72 min-w-(--radix-select-trigger-width) rounded-xl border border-input p-1 shadow-lg ring-0"
+      >
+        <SelectItem value={BIRTHDAY_NOT_SET} className={itemClassName}>
+          <span className="text-muted-foreground">—</span>
+        </SelectItem>
+        {options.map((option) => (
+          <SelectItem key={option.value} value={option.value} className={itemClassName}>
+            {option.label}
           </SelectItem>
         ))}
       </SelectContent>
