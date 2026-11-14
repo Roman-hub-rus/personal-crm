@@ -1,7 +1,7 @@
 // Group rules shared by the browser, the server and the tests: no "server-only" here.
 // Decisions behind this module are in openspec/changes/groups/design.md (decision 2).
 
-import { z } from "zod";
+import { z } from "@/lib/zod";
 
 export const GROUP_NAME_MAX_LENGTH = 50;
 

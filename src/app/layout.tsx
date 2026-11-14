@@ -18,6 +18,8 @@ export const metadata: Metadata = {
     template: "%s · Личная CRM",
   },
   description: "Люди, которых я знаю лично: кто это, откуда знакомы, как связаться и о чём договорились.",
+  // A plain file from public/: served as is, without the framework's cache headers.
+  icons: { icon: "/favicon.ico" },
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
