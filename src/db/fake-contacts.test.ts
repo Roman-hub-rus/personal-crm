@@ -8,8 +8,22 @@ import { generateFakeContacts } from "./fake-contacts";
 
 const NOW = new Date("2026-11-14T09:00:00.000Z");
 
-// SHA-256 of generateFakeContacts(1000, default seed, NOW) before birthdays were added.
-const CONTACTS_WITHOUT_BIRTHDAYS = "6b6752f71fefbf5e10eeb76ae5c4b2ec03ccbbf82be521e7285a370863e148aa";
+// SHA-256 of generateFakeContacts(1000, default seed, NOW) before birthdays were added, see fingerprint().
+const CONTACTS_WITHOUT_BIRTHDAYS = "b07f88f57f8ba23a6cc0832762eb670d1f988a547a70fdbc08e062e09653d4c1";
+
+// The dates at the start of note lines ("04.09.2024 — …") are formatted in the machine's time zone, so they
+// are left out: the fingerprint is the same on a developer's machine and in CI. The moments themselves
+// (lastNoteAt and the others) are compared exactly.
+function fingerprint(rows: ReturnType<typeof generateFakeContacts>) {
+  const comparable = rows.map((contact) => {
+    const rest = { ...contact };
+    delete rest.birthDay;
+    delete rest.birthMonth;
+    delete rest.birthYear;
+    return { ...rest, notes: rest.notes?.replace(/^\d{2}\.\d{2}\.\d{4} — /gm, "") ?? null };
+  });
+  return createHash("sha256").update(JSON.stringify(comparable)).digest("hex");
+}
 
 describe("generateFakeContacts: birthdays", () => {
   const contacts = generateFakeContacts(1000, undefined, NOW);
@@ -72,15 +86,6 @@ describe("generateFakeContacts: birthdays", () => {
   });
 
   test("имена и остальные поля контактов не изменились", () => {
-    const withoutBirthdays = contacts.map((contact) => {
-      const rest = { ...contact };
-      delete rest.birthDay;
-      delete rest.birthMonth;
-      delete rest.birthYear;
-      return rest;
-    });
-    expect(createHash("sha256").update(JSON.stringify(withoutBirthdays)).digest("hex")).toBe(
-      CONTACTS_WITHOUT_BIRTHDAYS,
-    );
+    expect(fingerprint(contacts)).toBe(CONTACTS_WITHOUT_BIRTHDAYS);
   });
 });
