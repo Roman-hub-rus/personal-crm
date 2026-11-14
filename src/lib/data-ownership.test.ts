@@ -2,10 +2,10 @@
 
 import { describe, expect, test } from "vitest";
 
-import { insertContact, insertGroup, insertOverdueContact } from "../../test-support/data";
+import { insertBirthdayContact, insertContact, insertGroup, insertOverdueContact } from "../../test-support/data";
 import { signInAs } from "../../vitest.session";
 import { parseGroupId } from "./contact-groups";
-import { countContacts, getContact, listContacts, listDueContacts } from "./contacts";
+import { countContacts, getContact, listBirthdayContacts, listContacts, listDueContacts } from "./contacts";
 import { listGroups, listGroupsWithCounts } from "./groups";
 
 async function twoUsers() {
@@ -40,6 +40,17 @@ describe("contacts of another user", () => {
 
     expect(await listDueContacts(b)).toEqual([]);
     expect(await listDueContacts(a)).toHaveLength(1);
+  });
+
+  test("Чужие дни рождения", async () => {
+    const { a, b } = await twoUsers();
+    const tennisOfA = await insertGroup(a, "Теннис");
+    await insertBirthdayContact(a, "Именинник у Анны", { day: 15, month: 11 }, [tennisOfA]);
+    await insertContact(b, "Контакт Бориса");
+
+    expect(await listBirthdayContacts(b)).toEqual([]);
+    expect(await listBirthdayContacts(b, tennisOfA)).toEqual([]);
+    expect(await listBirthdayContacts(a)).toHaveLength(1);
   });
 
   test("Новый пользователь", async () => {

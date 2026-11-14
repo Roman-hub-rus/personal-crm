@@ -1,6 +1,7 @@
 // Deterministic generator of realistic test contacts (Russian names and texts).
 // The same seed always produces the same contacts.
 
+import { APP_TIME_ZONE, BIRTHDAY_WINDOW_DAYS, daysInMonth, todayIn, type CalendarDate } from "../lib/birthdays";
 import { contactFrequency, type ContactFrequency, type NewContact } from "./schema";
 
 type Gender = "m" | "f";
@@ -743,6 +744,39 @@ function makeKeepInTouch(random: Random, now: Date, hasNotes: boolean) {
   };
 }
 
+// About a third of the contacts have a birthday, half of them without a year.
+const BIRTHDAY_SHARE = 1 / 3;
+// The first contacts with a birthday celebrate this many days from "today", so the "Скоро день рождения"
+// block always shows a few rows. All other birthdays fall outside the block, on whatever day the seed runs.
+const UPCOMING_BIRTHDAY_OFFSETS = [0, 1, 2, 3, 5, 7];
+function addDays({ year, month, day }: CalendarDate, days: number) {
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+  return { month: date.getUTCMonth() + 1, day: date.getUTCDate() };
+}
+
+function inBirthdayWindow(month: number, day: number, today: CalendarDate) {
+  return Array.from({ length: BIRTHDAY_WINDOW_DAYS + 1 }, (_, offset) => addDays(today, offset)).some(
+    (date) => date.month === month && date.day === day,
+  );
+}
+
+function makeBirthday(random: Random, today: CalendarDate, upcomingOffset: number | undefined) {
+  let month: number;
+  let day: number;
+  if (upcomingOffset !== undefined) {
+    ({ month, day } = addDays(today, upcomingOffset));
+  } else {
+    do {
+      month = random.int(1, 12);
+      day = random.int(1, daysInMonth(2000, month));
+    } while (inBirthdayWindow(month, day, today));
+  }
+  let year: number | null = random.chance(0.5) ? null : random.int(today.year - 75, today.year - 18);
+  // 29 February with a non-leap year is not a date: such a contact gets no year.
+  if (year !== null && day > daysInMonth(year, month)) year = null;
+  return { birthDay: day, birthMonth: month, birthYear: year };
+}
+
 function makePhone(random: Random): string | null {
   if (random.chance(0.12)) return null;
   const digits = (length: number) => Array.from({ length }, () => random.int(0, 9)).join("");
@@ -775,6 +809,10 @@ export function generateFakeContacts(count: number, seed = 20261008, now = new D
   const random = createRandom(seed);
   // A separate stream: adding "Пора связаться" data does not change the other contacts.
   const keepInTouchRandom = createRandom(seed + 1);
+  // Another one for birthdays (seed + 2 is taken by the groups, see fake-groups.ts).
+  const birthdayRandom = createRandom(seed + 3);
+  const today = todayIn(APP_TIME_ZONE, now);
+  let birthdayCount = 0;
   const usedNames = new Set<string>();
   const result: FakeContact[] = [];
   const fourYearsAgo = new Date(now.getTime() - 4 * 365 * DAY_MS);
@@ -811,6 +849,11 @@ export function generateFakeContacts(count: number, seed = 20261008, now = new D
           keepInTouch.lastNoteAt?.getTime() ?? 0,
         ),
       );
+    }
+
+    if (birthdayRandom.chance(BIRTHDAY_SHARE)) {
+      Object.assign(contact, makeBirthday(birthdayRandom, today, UPCOMING_BIRTHDAY_OFFSETS[birthdayCount]));
+      birthdayCount += 1;
     }
 
     result.push(contact);

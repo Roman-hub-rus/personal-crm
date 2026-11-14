@@ -22,6 +22,9 @@ function baseInput(overrides: Partial<Record<string, unknown>> = {}) {
     email: "",
     frequency: "",
     notes: "",
+    birthDay: "",
+    birthMonth: "",
+    birthYear: "",
     groupIds: [],
     newGroups: [],
     ...overrides,
@@ -183,5 +186,79 @@ describe("updateContact", () => {
 
     expect(result.ok).toBe(true);
     expect(await db.select().from(contactGroups)).toHaveLength(0);
+  });
+});
+
+describe("День рождения", () => {
+  async function storedBirthday(id: number) {
+    const [row] = await db
+      .select({ day: contacts.birthDay, month: contacts.birthMonth, year: contacts.birthYear })
+      .from(contacts)
+      .where(eq(contacts.id, id));
+    return row;
+  }
+
+  test("Указал день рождения с годом", async () => {
+    const created = await createContact(baseInput());
+    if (!created.ok) throw new Error("unreachable");
+
+    const result = await updateContact(created.id, baseInput({ birthDay: "17", birthMonth: "11", birthYear: "1991" }));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.values).toMatchObject({ birthDay: "17", birthMonth: "11", birthYear: "1991" });
+    expect(await storedBirthday(created.id)).toEqual({ day: 17, month: 11, year: 1991 });
+  });
+
+  test("Указал день рождения без года", async () => {
+    const created = await createContact(baseInput());
+    if (!created.ok) throw new Error("unreachable");
+
+    const result = await updateContact(created.id, baseInput({ birthDay: "3", birthMonth: "3", birthYear: "" }));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.values).toMatchObject({ birthDay: "3", birthMonth: "3", birthYear: "" });
+    expect(await storedBirthday(created.id)).toEqual({ day: 3, month: 3, year: null });
+  });
+
+  test("День рождения при создании контакта", async () => {
+    const result = await createContact(baseInput({ birthDay: "5", birthMonth: "5", birthYear: "1988" }));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(await storedBirthday(result.id)).toEqual({ day: 5, month: 5, year: 1988 });
+  });
+
+  test("Убрал день рождения", async () => {
+    const created = await createContact(baseInput({ birthDay: "17", birthMonth: "11", birthYear: "1991" }));
+    if (!created.ok) throw new Error("unreachable");
+
+    const result = await updateContact(created.id, baseInput({ birthDay: "", birthMonth: "", birthYear: "" }));
+
+    expect(result.ok).toBe(true);
+    expect(await storedBirthday(created.id)).toEqual({ day: null, month: null, year: null });
+  });
+
+  test("Неверная дата в обход формы", async () => {
+    const created = await createContact(baseInput({ birthDay: "17", birthMonth: "11", birthYear: "1991" }));
+    if (!created.ok) throw new Error("unreachable");
+    const [before] = await db.select().from(contacts).where(eq(contacts.id, created.id));
+
+    const result = await updateContact(created.id, baseInput({ name: "Новое имя", birthDay: "31", birthMonth: "4" }));
+
+    expect(result).toMatchObject({
+      ok: false,
+      fieldErrors: { birthday: "Такой даты нет — проверьте день и месяц" },
+    });
+    const [after] = await db.select().from(contacts).where(eq(contacts.id, created.id));
+    expect(after).toEqual(before);
+  });
+
+  test("неверная дата при создании — контакт не создан", async () => {
+    const result = await createContact(baseInput({ birthDay: "12", birthMonth: "" }));
+
+    expect(result).toMatchObject({ ok: false, fieldErrors: { birthday: "Укажите и день, и месяц" } });
+    expect(await db.select().from(contacts)).toHaveLength(0);
   });
 });

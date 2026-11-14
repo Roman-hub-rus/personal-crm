@@ -13,6 +13,7 @@ import {
   type ContactFormValues,
   type FieldErrors,
 } from "@/lib/contact-input";
+import { APP_TIME_ZONE, todayIn } from "@/lib/birthdays";
 import { formatDateTime } from "@/lib/format";
 import { requireUser } from "@/lib/session";
 
@@ -78,7 +79,7 @@ async function saveContactGroups(tx: Tx, contactId: number, groupIds: number[]) 
 
 export async function createContact(input: unknown): Promise<CreateContactResult> {
   const user = await requireUser();
-  const parsed = contactInputSchema.safeParse(input);
+  const parsed = contactInputSchema(todayIn(APP_TIME_ZONE, new Date())).safeParse(input);
   if (!parsed.success) {
     return { ok: false, fieldErrors: toFieldErrors(parsed.error) };
   }
@@ -113,7 +114,7 @@ export async function updateContact(id: number, input: unknown): Promise<UpdateC
     return { ok: false, message: "Контакт не найден" };
   }
 
-  const parsed = contactInputSchema.safeParse(input);
+  const parsed = contactInputSchema(todayIn(APP_TIME_ZONE, new Date())).safeParse(input);
   if (!parsed.success) {
     return { ok: false, fieldErrors: toFieldErrors(parsed.error) };
   }

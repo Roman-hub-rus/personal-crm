@@ -7,8 +7,10 @@ import { ContactList } from "@/components/contact-list";
 import { ContactSearch } from "@/components/contact-search";
 import { DueContacts } from "@/components/due-contacts";
 import { Button } from "@/components/ui/button";
+import { UpcomingBirthdays } from "@/components/upcoming-birthdays";
+import { APP_TIME_ZONE, todayIn, upcomingBirthdays } from "@/lib/birthdays";
 import { groupFilterItems, parseGroupId, type GroupFilterItem } from "@/lib/contact-groups";
-import { countContacts, listContacts, listDueContacts } from "@/lib/contacts";
+import { countContacts, listBirthdayContacts, listContacts, listDueContacts } from "@/lib/contacts";
 import { formatContactsCount } from "@/lib/format";
 import { listGroups } from "@/lib/groups";
 import { MAX_SEARCH_LENGTH } from "@/lib/search";
@@ -30,12 +32,14 @@ export default async function ContactsPage({ searchParams }: PageProps<"/">) {
   const groupId = parseGroupId(firstParam(params.group), allGroups);
   const selectedGroup = groupId === null ? null : (allGroups.find((group) => group.id === groupId) ?? null);
 
-  // "Пора связаться" is hidden while searching, so it is not even queried then.
-  const [items, total, dueContacts] = await Promise.all([
+  // "Скоро день рождения" and "Пора связаться" are hidden while searching, so they are not even queried then.
+  const [items, total, birthdayContacts, dueContacts] = await Promise.all([
     listContacts(user.id, query, groupId),
     countContacts(user.id),
+    query ? [] : listBirthdayContacts(user.id, groupId),
     query ? [] : listDueContacts(user.id, groupId),
   ]);
+  const birthdays = upcomingBirthdays(birthdayContacts, todayIn(APP_TIME_ZONE, new Date()));
 
   const filterItems = groupFilterItems(allGroups, groupId, query);
 
@@ -60,6 +64,7 @@ export default async function ContactsPage({ searchParams }: PageProps<"/">) {
         )}
       </div>
 
+      {birthdays.length > 0 && <UpcomingBirthdays items={birthdays} groupId={groupId} />}
       {dueContacts.length > 0 && <DueContacts items={dueContacts} groupId={groupId} />}
 
       {total === 0 ? (

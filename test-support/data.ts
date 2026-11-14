@@ -33,3 +33,26 @@ export async function insertOverdueContact(ownerId: string, name: string, groupI
   }
   return contact.id;
 }
+
+// A contact with a birthday; the year is optional.
+export async function insertBirthdayContact(
+  ownerId: string,
+  name: string,
+  birthday: { day: number; month: number; year?: number },
+  groupIds: number[] = [],
+) {
+  const [contact] = await db
+    .insert(contacts)
+    .values({
+      ownerId,
+      name,
+      birthDay: birthday.day,
+      birthMonth: birthday.month,
+      birthYear: birthday.year ?? null,
+    })
+    .returning({ id: contacts.id });
+  if (groupIds.length > 0) {
+    await db.insert(contactGroups).values(groupIds.map((groupId) => ({ contactId: contact.id, groupId })));
+  }
+  return contact.id;
+}

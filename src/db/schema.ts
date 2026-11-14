@@ -1,10 +1,12 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   integer,
   pgTable,
   primaryKey,
   pgEnum,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -132,13 +134,28 @@ export const contacts = pgTable(
     lastContactedAt: timestamp("last_contacted_at", { withTimezone: true }),
     // When the frequency changed from "not set" to a value; NULL while it is not set.
     frequencySetAt: timestamp("frequency_set_at", { withTimezone: true }),
+    // Birthday: day and month, the year is optional. All NULL means "not set".
+    birthDay: smallint("birth_day"),
+    birthMonth: smallint("birth_month"),
+    birthYear: smallint("birth_year"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (table) => [index("contacts_owner_id_idx").on(table.ownerId)],
+  (table) => [
+    index("contacts_owner_id_idx").on(table.ownerId),
+    // Catches only gross errors: day and month come together, the year only with them, day 1-31, month 1-12.
+    // The exact calendar check (31 April, 29 February 1990, a date in the future) is done by the server.
+    check(
+      "contacts_birthday_check",
+      // "is not null" is explicit: a CHECK that evaluates to NULL counts as passed.
+      sql`(${table.birthDay} is null and ${table.birthMonth} is null and ${table.birthYear} is null)
+        or (${table.birthDay} is not null and ${table.birthMonth} is not null
+          and ${table.birthDay} between 1 and 31 and ${table.birthMonth} between 1 and 12)`,
+    ),
+  ],
 );
 
 export type Contact = typeof contacts.$inferSelect;

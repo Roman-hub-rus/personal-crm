@@ -99,6 +99,34 @@ export async function listDueContacts(userId: string, groupId: number | null = n
     .orderBy(dueAt, sql`${contacts.name} collate "ru-RU-x-icu"`, asc(contacts.id));
 }
 
+export type BirthdayContact = {
+  id: number;
+  name: string;
+  birthDay: number;
+  birthMonth: number;
+  birthYear: number | null;
+};
+
+// Contacts with a birthday, by name; who has it soon is decided by `upcomingBirthdays` (lib/birthdays.ts).
+// `groupId` (when given) keeps only the people in that group.
+export async function listBirthdayContacts(userId: string, groupId: number | null = null): Promise<BirthdayContact[]> {
+  const conditions = [eq(contacts.ownerId, userId), isNotNull(contacts.birthDay), isNotNull(contacts.birthMonth)];
+  if (groupId !== null) conditions.push(inGroup(groupId));
+
+  return db
+    .select({
+      id: contacts.id,
+      name: contacts.name,
+      // Not null: guaranteed by the conditions above.
+      birthDay: sql<number>`${contacts.birthDay}`,
+      birthMonth: sql<number>`${contacts.birthMonth}`,
+      birthYear: contacts.birthYear,
+    })
+    .from(contacts)
+    .where(and(...conditions))
+    .orderBy(sql`${contacts.name} collate "ru-RU-x-icu"`, asc(contacts.id));
+}
+
 export async function countContacts(userId: string): Promise<number> {
   const [{ value }] = await db.select({ value: count() }).from(contacts).where(eq(contacts.ownerId, userId));
   return value;

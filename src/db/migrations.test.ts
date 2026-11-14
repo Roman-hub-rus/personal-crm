@@ -321,3 +321,63 @@ describe("users", () => {
     );
   });
 });
+
+describe("birthdays", () => {
+  // Every column the contacts table had before birthdays existed.
+  const selectOldColumns = sql`select id, owner_id, name, about, how_we_met, phone, email, notes, contact_frequency,
+    last_note_at, last_contacted_at, frequency_set_at, created_at, updated_at from contacts order by id`;
+
+  async function addExistingContacts(db: PostgresJsDatabase) {
+    await db.execute(sql`insert into users (id, name, email) values ('owner', '', 'owner@example.com')`);
+    await db.execute(sql`
+      insert into contacts (owner_id, name, about, how_we_met, phone, email, notes, contact_frequency,
+                            last_note_at, last_contacted_at, frequency_set_at) values
+        ('owner', 'Анна Петрова', 'Коллега', 'На работе', '+7 900 000-00-01', 'anna@example.com', 'Обсудили отпуск',
+         'month', '2026-09-01 10:00:00+00', '2026-09-05 10:00:00+00', '2026-08-01 10:00:00+00'),
+        ('owner', 'Борис Орлов', null, null, null, null, null, null, null, null, null)
+    `);
+  }
+
+  test("Существующие контакты после запуска", async () => {
+    let contactsBefore: Record<string, unknown>[] = [];
+    await migrateAcross(
+      "_birthdays",
+      async (db) => {
+        await addExistingContacts(db);
+        contactsBefore = [...(await db.execute(selectOldColumns))];
+      },
+      async (db) => {
+        expect([...(await db.execute(selectOldColumns))]).toEqual(contactsBefore);
+
+        const birthdays = await db.execute(sql`select birth_day, birth_month, birth_year from contacts order by id`);
+        expect([...birthdays]).toEqual([
+          { birth_day: null, birth_month: null, birth_year: null },
+          { birth_day: null, birth_month: null, birth_year: null },
+        ]);
+      },
+    );
+  });
+
+  test("База не принимает половинчатую или неверную дату рождения", async () => {
+    await migrateAcross("_birthdays", addExistingContacts, async (db) => {
+      const invalid = [
+        sql`update contacts set birth_day = 12 where name = 'Борис Орлов'`,
+        sql`update contacts set birth_month = 3 where name = 'Борис Орлов'`,
+        sql`update contacts set birth_year = 1990 where name = 'Борис Орлов'`,
+        sql`update contacts set birth_day = 32, birth_month = 1 where name = 'Борис Орлов'`,
+        sql`update contacts set birth_day = 0, birth_month = 1 where name = 'Борис Орлов'`,
+        sql`update contacts set birth_day = 1, birth_month = 13 where name = 'Борис Орлов'`,
+        sql`update contacts set birth_day = 1, birth_month = 0 where name = 'Борис Орлов'`,
+      ];
+      for (const statement of invalid) {
+        await expect(db.execute(statement)).rejects.toThrow();
+      }
+
+      // A full date and a date without a year are accepted.
+      await db.execute(sql`update contacts set birth_day = 29, birth_month = 2 where name = 'Борис Орлов'`);
+      await db.execute(
+        sql`update contacts set birth_day = 17, birth_month = 11, birth_year = 1991 where name = 'Анна Петрова'`,
+      );
+    });
+  });
+});
