@@ -10,12 +10,16 @@
 x-db-env: &db-env
   DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
 
-# Container logs are capped so they cannot fill the server disk.
+# Container logs go to the server journal (journald): they outlive the container, so a deploy, a rollback or
+# a restore that recreates it keeps the lines of the version before. journald caps the size of the journal on
+# its own and drops the oldest lines, so the logs cannot fill the server disk.
+# Read them with `sudo journalctl -t prod-app-1` (the tag is the container name); the compose labels become the
+# fields COM_DOCKER_COMPOSE_PROJECT and COM_DOCKER_COMPOSE_SERVICE, to find a whole environment or its migrations.
 x-logging: &logging
-  driver: json-file
+  driver: journald
   options:
-    max-size: 10m
-    max-file: "3"
+    tag: "{{.Name}}"
+    labels: com.docker.compose.project,com.docker.compose.service
 
 # Memory caps: production and the test stand share a server with 1.8 GB, so one stack cannot take it all.
 x-memory-db: &memory-db
