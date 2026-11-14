@@ -3,7 +3,8 @@
 # The version in the name is the one the app container has now, so a backup taken by a deploy is named
 # after the version that ran before it: that is the app version the backup's data and schema belong to.
 #
-# Run by crm-deploy.sh release (the first step of every deploy) and by restore.sh (a copy before restoring).
+# Run by crm-deploy.sh release (the first step of every production deploy, no label), daily-backup.sh (label "daily")
+# and restore.sh (a copy before restoring, label "before-restore").
 # Callers hold the deploy lock. Progress goes to stderr; the path of the new backup is printed to stdout.
 #
 # Usage: backup.sh [label]
